@@ -72,32 +72,20 @@ jobs:
       run: terraform show -no-color tfplan
       working-directory: ${{ env.WORKING_DIR }}
 
-    - name: Comment Plan on PR
-      uses: actions/github-script@v7
-      if: github.event_name == 'pull_request'
-      env:
-        PLAN: "terraform\n${{ steps.show.outputs.stdout }}"
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const output = `#### Terraform Plan \`${{ steps.plan.outcome }}\`
-
-          <details><summary>Show Plan</summary>
-
-          \`\`\`hcl
-          ${process.env.PLAN}
-          \`\`\`
-
-          </details>
-
-          *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
-
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: output
-          })
+    - name: Plan Summary
+      if: always()
+      run: |
+        echo "### Terraform Plan Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Plan Status:** ${{ steps.plan.outcome }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ secrets.AWS_ACCESS_KEY_ID }}" = "" ]; then
+          echo "⚠️ AWS credentials not configured - plan skipped" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ steps.plan.outcome }}" = "success" ]; then
+          echo "✅ Plan completed successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Plan failed - check logs for details" >> $GITHUB_STEP_SUMMARY
+        fi
 
     - name: Plan Status
       if: steps.plan.outcome == 'failure'
