@@ -256,6 +256,3 @@ For issues or questions:
 2. Review Terraform state and plan output
 3. Verify AWS CLI configuration and permissions
 
-## License
-
-This infrastructure code is provided as-is for educational and development purposes.
