@@ -34,6 +34,7 @@ jobs:
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
+      if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -42,20 +43,32 @@ jobs:
     - name: Terraform Init
       id: init
       run: |
-        terraform init \
-          -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
-          -backend-config="key=terraform.tfstate" \
-          -backend-config="region=${{ env.AWS_REGION }}"
+        if [ -n "${{ secrets.TERRAFORM_STATE_BUCKET }}" ]; then
+          terraform init \
+            -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+        else
+          terraform init -backend=false
+        fi
       working-directory: ${{ env.WORKING_DIR }}
 
     - name: Terraform Plan
       id: plan
-      run: terraform plan -no-color -out=tfplan
+      run: |
+        if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+          terraform plan -no-color -out=tfplan
+        else
+          echo "Skipping plan - AWS credentials not configured"
+          echo "Please add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to repository secrets"
+          exit 0
+        fi
       working-directory: ${{ env.WORKING_DIR }}
       continue-on-error: true
 
     - name: Terraform Show Plan
       id: show
+      if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
       run: terraform show -no-color tfplan
       working-directory: ${{ env.WORKING_DIR }}
 
