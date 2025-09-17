@@ -2,6 +2,48 @@
 
 This Terraform project creates a complete three-tier application infrastructure on AWS using ECS Fargate, Application Load Balancer, and RDS MySQL.
 
+## Architecture Diagram
+
+![AWS ECS Three-Tier Architecture](./images/architecture-diagram.png)
+
+## Architecture Flow Diagram
+
+```mermaid
+graph TB
+    subgraph "AWS Cloud - Sydney Region (ap-southeast-2)"
+        subgraph "VPC 10.0.0.0/16"
+            subgraph "Public Subnet 10.0.1.0/24"
+                IGW[Internet Gateway]
+                ALB[Application Load Balancer<br/>Port 80/443]
+                NAT[NAT Gateway]
+                FE[Frontend ECS Service<br/>Port 8080<br/>Fargate]
+            end
+
+            subgraph "Private Subnet 10.0.2.0/24"
+                BE[Backend ECS Service<br/>Port 8080<br/>Fargate]
+            end
+
+            subgraph "Database Subnet 10.0.3.0/24"
+                RDS[(RDS MySQL<br/>db.t3.micro<br/>Port 3306)]
+            end
+        end
+    end
+
+    Internet[Internet Users] --> IGW
+    IGW --> ALB
+    ALB --> FE
+    FE --> BE
+    BE --> RDS
+    BE -.-> NAT
+    NAT -.-> IGW
+
+    style Internet fill:#f9f,stroke:#333,stroke-width:2px
+    style ALB fill:#ff9,stroke:#333,stroke-width:2px
+    style FE fill:#9ff,stroke:#333,stroke-width:2px
+    style BE fill:#9f9,stroke:#333,stroke-width:2px
+    style RDS fill:#f99,stroke:#333,stroke-width:2px
+```
+
 ## Architecture Overview
 
 The infrastructure consists of:
@@ -30,6 +72,42 @@ The infrastructure consists of:
 - **RDS MySQL**: db.t3.micro instance with automated backups
 - **Multi-AZ subnet group**: For high availability
 
+## Security Groups Flow Diagram
+
+```mermaid
+graph LR
+    subgraph "Security Groups & Network Flow"
+        Internet[Internet<br/>0.0.0.0/0]
+
+        subgraph "ALB Security Group"
+            ALB_SG[ALB SG<br/>Ingress: 80, 443 from Internet<br/>Egress: 8080 to Frontend SG]
+        end
+
+        subgraph "Frontend Security Group"
+            FE_SG[Frontend SG<br/>Ingress: 8080 from ALB SG<br/>Egress: 8080 to Backend SG]
+        end
+
+        subgraph "Backend Security Group"
+            BE_SG[Backend SG<br/>Ingress: 8080 from Frontend SG<br/>Egress: 3306 to RDS SG]
+        end
+
+        subgraph "RDS Security Group"
+            RDS_SG[RDS SG<br/>Ingress: 3306 from Backend SG<br/>Egress: Restricted]
+        end
+    end
+
+    Internet -->|HTTP/HTTPS| ALB_SG
+    ALB_SG -->|Port 8080| FE_SG
+    FE_SG -->|Port 8080| BE_SG
+    BE_SG -->|Port 3306| RDS_SG
+
+    style Internet fill:#faa,stroke:#333,stroke-width:2px
+    style ALB_SG fill:#afa,stroke:#333,stroke-width:2px
+    style FE_SG fill:#aaf,stroke:#333,stroke-width:2px
+    style BE_SG fill:#ffa,stroke:#333,stroke-width:2px
+    style RDS_SG fill:#faf,stroke:#333,stroke-width:2px
+```
+
 ## Directory Structure
 
 ```
@@ -52,6 +130,44 @@ terraform/
 1. **AWS CLI configured** with appropriate credentials
 2. **Terraform** installed (version >= 1.0)
 3. **IAM permissions** for creating AWS resources
+
+## Terraform Module Dependencies
+
+```mermaid
+graph TD
+    subgraph "Terraform Execution Flow"
+        Variables[variables.tf<br/>Input Variables]
+
+        subgraph "Module Dependencies"
+            Network[networking module<br/>VPC, Subnets, IGW, NAT]
+            Security[security module<br/>Security Groups]
+            ALB_mod[alb module<br/>Load Balancer, Target Groups]
+            RDS_mod[rds module<br/>MySQL Database]
+            ECS[ecs module<br/>ECS Cluster, Services]
+        end
+
+        Outputs[outputs.tf<br/>ALB DNS, VPC ID, etc.]
+    end
+
+    Variables --> Network
+    Network --> Security
+    Security --> ALB_mod
+    Security --> RDS_mod
+    ALB_mod --> ECS
+    RDS_mod --> ECS
+    Network --> ALB_mod
+    Network --> RDS_mod
+    Network --> ECS
+    ECS --> Outputs
+
+    style Variables fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style Network fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Security fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    style ALB_mod fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    style RDS_mod fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style ECS fill:#fff8e1,stroke:#f57f17,stroke-width:2px
+    style Outputs fill:#e0f2f1,stroke:#004d40,stroke-width:2px
+```
 
 ## Deployment Instructions
 
@@ -255,4 +371,77 @@ For issues or questions:
 1. Check AWS CloudWatch logs
 2. Review Terraform state and plan output
 3. Verify AWS CLI configuration and permissions
+
+## Adding Architecture Diagrams
+
+To add your own architecture diagrams to this README:
+
+### 1. Create Images Directory
+```bash
+mkdir images
+```
+
+### 2. Add Your PNG Images
+Place your PNG files in the `images` directory:
+```
+images/
+├── architecture-diagram.png
+├── network-diagram.png
+└── deployment-flow.png
+```
+
+### 3. Image Display Methods
+
+#### Method 1: Markdown Syntax (Recommended)
+```markdown
+![Alt Text](./images/your-image.png)
+```
+
+#### Method 2: GitHub Absolute URL
+```markdown
+![Alt Text](https://github.com/sabiut/terraform-aws-ecs-infra/blob/master/images/your-image.png)
+```
+
+#### Method 3: HTML with Size Control
+```html
+<img src="./images/your-image.png" width="600" alt="Architecture">
+```
+
+#### Method 4: Centered Image
+```html
+<p align="center">
+  <img src="./images/your-image.png" width="800" alt="Architecture">
+</p>
+```
+
+### 4. Best Practices for Diagrams
+
+- **File Format**: Use PNG for diagrams (better quality than JPEG for technical drawings)
+- **Resolution**: 1200-1600px width for clarity
+- **File Size**: Keep under 1MB for faster loading
+- **Naming**: Use descriptive names with hyphens (e.g., `ecs-architecture-diagram.png`)
+- **Alt Text**: Always include descriptive alt text for accessibility
+
+### 5. Creating Architecture Diagrams
+
+You can create architecture diagrams using:
+- **draw.io** (free, web-based)
+- **AWS Architecture Icons** (official AWS icons)
+- **Lucidchart** (professional diagramming)
+- **PlantUML** (code-based diagrams)
+- **Mermaid** (GitHub native support in markdown)
+
+### Example Mermaid Diagram (GitHub renders automatically)
+
+```mermaid
+graph TD
+    A[Internet] --> B[ALB]
+    B --> C[Frontend ECS]
+    C --> D[Backend ECS]
+    D --> E[RDS MySQL]
+    B -.-> F[Public Subnet]
+    C -.-> F
+    D -.-> G[Private Subnet]
+    E -.-> H[Database Subnet]
+```
 
