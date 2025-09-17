@@ -51,7 +51,7 @@ resource "aws_db_instance" "main" {
   skip_final_snapshot = true
   deletion_protection = false
 
-  enabled_cloudwatch_logs_exports = ["error", "general", "slow_query"]
+  enabled_cloudwatch_logs_exports = ["error", "general", "slowquery"]
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-rds"
