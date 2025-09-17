@@ -1,0 +1,92 @@
+name: 'Terraform Apply'
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'terraform/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  TERRAFORM_VERSION: '1.5.7'
+  WORKING_DIR: './terraform'
+  AWS_REGION: 'ap-southeast-2'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform-apply:
+    name: 'Terraform Apply'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Terraform Init
+      id: init
+      run: |
+        terraform init \
+          -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+          -backend-config="key=terraform.tfstate" \
+          -backend-config="region=${{ env.AWS_REGION }}"
+      working-directory: ${{ env.WORKING_DIR }}
+
+    - name: Select Workspace
+      run: |
+        terraform workspace select ${{ github.event.inputs.environment || 'dev' }} || terraform workspace new ${{ github.event.inputs.environment || 'dev' }}
+      working-directory: ${{ env.WORKING_DIR }}
+
+    - name: Terraform Plan
+      id: plan
+      run: terraform plan -no-color -out=tfplan
+      working-directory: ${{ env.WORKING_DIR }}
+
+    - name: Terraform Apply
+      id: apply
+      run: terraform apply -auto-approve tfplan
+      working-directory: ${{ env.WORKING_DIR }}
+
+    - name: Terraform Output
+      id: output
+      run: |
+        echo "### Deployment Outputs" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        terraform output -json | jq -r 'to_entries[] | "\(.key): \(.value.value)"' >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+      working-directory: ${{ env.WORKING_DIR }}
+
+    - name: Create GitHub Deployment
+      uses: chrnorm/deployment-action@v2
+      with:
+        token: '${{ github.token }}'
+        environment-url: ${{ steps.output.outputs.alb_dns_name }}
+        environment: ${{ github.event.inputs.environment || 'dev' }}
+        description: 'Terraform Apply Completed'

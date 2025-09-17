@@ -1,0 +1,1 @@
+{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"alb","Source":"./modules/alb","Dir":"modules/alb"},{"Key":"ecs","Source":"./modules/ecs","Dir":"modules/ecs"},{"Key":"networking","Source":"./modules/networking","Dir":"modules/networking"},{"Key":"rds","Source":"./modules/rds","Dir":"modules/rds"},{"Key":"security","Source":"./modules/security","Dir":"modules/security"}]}
