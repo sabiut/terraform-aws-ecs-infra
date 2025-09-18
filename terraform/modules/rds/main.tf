@@ -57,3 +57,25 @@ resource "aws_db_instance" "main" {
     Name = "${var.project_name}-${var.environment}-rds"
   })
 }
+
+# Secrets Manager for database credentials
+resource "aws_secretsmanager_secret" "db_credentials" {
+  name        = "${var.project_name}-${var.environment}-db-credentials"
+  description = "Database credentials for ${var.project_name} ${var.environment}"
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-db-credentials"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "db_credentials" {
+  secret_id = aws_secretsmanager_secret.db_credentials.id
+  secret_string = jsonencode({
+    username = var.db_username
+    password = var.db_password
+    engine   = "mysql"
+    host     = aws_db_instance.main.endpoint
+    port     = 3306
+    dbname   = var.db_name
+  })
+}
