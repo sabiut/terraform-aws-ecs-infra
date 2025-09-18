@@ -39,6 +39,36 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# IAM policy for accessing Secrets Manager
+resource "aws_iam_policy" "secrets_access" {
+  name        = "${var.project_name}-${var.environment}-secrets-access"
+  description = "Policy to allow ECS tasks to access Secrets Manager"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = [
+          var.db_secret_arn
+        ]
+      }
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-secrets-access"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_secrets_policy" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = aws_iam_policy.secrets_access.arn
+}
+
 resource "aws_iam_role" "ecs_task_role" {
   name = "${var.project_name}-${var.environment}-ecs-task-role"
 
@@ -162,14 +192,12 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name  = "DB_NAME"
           value = var.db_name
-        },
+        }
+      ]
+      secrets = [
         {
-          name  = "DB_USER"
-          value = var.db_username
-        },
-        {
-          name  = "DB_PASSWORD"
-          value = var.db_password
+          name      = "DB_CREDENTIALS"
+          valueFrom = var.db_secret_arn
         }
       ]
     }

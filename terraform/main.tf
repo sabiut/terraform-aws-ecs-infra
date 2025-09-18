@@ -75,9 +75,8 @@ module "ecs" {
   backend_security_group_id  = module.security.backend_security_group_id
   alb_target_group_arn      = module.alb.target_group_arn
   rds_endpoint              = module.rds.rds_endpoint
+  db_secret_arn             = module.rds.db_secret_arn
   db_name                   = var.db_name
-  db_username               = var.db_username
-  db_password               = var.db_password
 
   tags = local.common_tags
 }

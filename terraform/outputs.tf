@@ -53,3 +53,13 @@ output "ecs_cluster_name" {
   description = "Name of the ECS cluster"
   value       = module.ecs.cluster_name
 }
+
+output "db_secret_arn" {
+  description = "ARN of the Secrets Manager secret containing database credentials"
+  value       = module.rds.db_secret_arn
+}
+
+output "db_secret_name" {
+  description = "Name of the Secrets Manager secret containing database credentials"
+  value       = module.rds.db_secret_name
+}
