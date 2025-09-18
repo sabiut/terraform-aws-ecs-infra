@@ -10,20 +10,20 @@ This Terraform project creates a complete three-tier application infrastructure 
 
 ```mermaid
 graph TB
-    subgraph "AWS Cloud - Sydney Region (ap-southeast-2)"
-        subgraph "VPC 10.0.0.0/16"
-            subgraph "Public Subnet 10.0.1.0/24"
+    subgraph AWS["AWS Cloud - Sydney Region ap-southeast-2"]
+        subgraph VPC["VPC 10.0.0.0/16"]
+            subgraph PUB["Public Subnet 10.0.1.0/24"]
                 IGW[Internet Gateway]
                 ALB[Application Load Balancer<br/>Port 80/443]
                 NAT[NAT Gateway]
                 FE[Frontend ECS Service<br/>Port 8080<br/>Fargate]
             end
 
-            subgraph "Private Subnet 10.0.2.0/24"
+            subgraph PRIV["Private Subnet 10.0.2.0/24"]
                 BE[Backend ECS Service<br/>Port 8080<br/>Fargate]
             end
 
-            subgraph "Database Subnet 10.0.3.0/24"
+            subgraph DB["Database Subnet 10.0.3.0/24"]
                 RDS[(RDS MySQL<br/>db.t3.micro<br/>Port 3306)]
             end
         end
@@ -111,18 +111,26 @@ graph LR
 ## Directory Structure
 
 ```
-terraform/
-├── main.tf                    # Main Terraform configuration
-├── variables.tf               # Input variables
-├── outputs.tf                 # Output values
-├── terraform.tfvars.example   # Example variables file
-├── README.md                  # This file
-└── modules/
-    ├── networking/            # VPC, subnets, routing
-    ├── security/              # Security groups
-    ├── alb/                   # Application Load Balancer
-    ├── ecs/                   # ECS cluster and services
-    └── rds/                   # RDS database
+.
+├── terraform-backend/         # Backend infrastructure setup
+│   ├── main.tf               # S3 bucket and DynamoDB table
+│   ├── variables.tf          # Backend configuration variables
+│   ├── outputs.tf            # Backend resource outputs
+│   ├── terraform.tfvars.example
+│   └── README.md
+├── terraform/                # Main infrastructure
+│   ├── main.tf               # Main Terraform configuration
+│   ├── variables.tf          # Input variables
+│   ├── outputs.tf            # Output values
+│   ├── terraform.tfvars.example
+│   └── modules/
+│       ├── networking/       # VPC, subnets, routing
+│       ├── security/         # Security groups
+│       ├── alb/              # Application Load Balancer
+│       ├── ecs/              # ECS cluster and services
+│       └── rds/              # RDS database
+└── .github/
+    └── workflows/            # CI/CD workflows
 ```
 
 ## Prerequisites
@@ -171,14 +179,29 @@ graph TD
 
 ## Deployment Instructions
 
-### 1. Clone and Setup
+### 1. Setup Backend Infrastructure (First Time Only)
+
+Before deploying the main infrastructure, you need to create the S3 bucket and DynamoDB table for Terraform state management:
+
+```bash
+cd terraform-backend
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your bucket name and settings
+terraform init
+terraform plan
+terraform apply
+```
+
+**Note the outputs** - you'll need the bucket name for the next steps.
+
+### 2. Clone and Setup Main Infrastructure
 
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
 ```
 
-### 2. Configure Variables
+### 3. Configure Variables
 
 Edit `terraform.tfvars` with your specific values:
 
@@ -206,13 +229,19 @@ db_password      = "your-secure-password"
 
 **Important**: Never commit `terraform.tfvars` to version control!
 
-### 3. Initialize Terraform
+### 4. Initialize Terraform with Backend
 
 ```bash
-terraform init
+# Initialize with S3 backend (replace with your bucket name from step 1)
+terraform init \
+  -backend-config="bucket=your-terraform-state-bucket" \
+  -backend-config="key=terraform.tfstate" \
+  -backend-config="region=ap-southeast-2" \
+  -backend-config="dynamodb_table=terraform-state-locks" \
+  -backend-config="encrypt=true"
 ```
 
-### 4. Plan Deployment
+### 5. Plan Deployment
 
 ```bash
 terraform plan
@@ -220,7 +249,7 @@ terraform plan
 
 Review the planned changes carefully.
 
-### 5. Deploy Infrastructure
+### 6. Deploy Infrastructure
 
 ```bash
 terraform apply
@@ -228,7 +257,7 @@ terraform apply
 
 Type `yes` when prompted to confirm the deployment.
 
-### 6. Get Outputs
+### 7. Get Outputs
 
 After successful deployment, retrieve important information:
 

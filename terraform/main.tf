@@ -6,6 +6,15 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  backend "s3" {
+    # Configure via terraform init with backend-config flags or terraform.tfvars
+    # bucket         = "your-terraform-state-bucket"
+    # key            = "terraform.tfstate"
+    # region         = "ap-southeast-2"
+    # dynamodb_table = "terraform-state-locks"
+    # encrypt        = true
+  }
 }
 
 provider "aws" {
