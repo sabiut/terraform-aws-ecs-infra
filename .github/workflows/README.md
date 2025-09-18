@@ -71,7 +71,7 @@ Configure these secrets in your GitHub repository settings:
 
 For production deployments, configure environment protection rules:
 
-1. Go to Settings → Environments
+1. Go to Settings  Environments
 2. Create environments: `dev`, `staging`, `prod`
 3. For `prod` environment:
    - Enable required reviewers

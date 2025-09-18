@@ -80,11 +80,11 @@ jobs:
         echo "**Plan Status:** ${{ steps.plan.outcome }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         if [ "${{ secrets.AWS_ACCESS_KEY_ID }}" = "" ]; then
-          echo "⚠️ AWS credentials not configured - plan skipped" >> $GITHUB_STEP_SUMMARY
+          echo "AWS credentials not configured - plan skipped" >> $GITHUB_STEP_SUMMARY
         elif [ "${{ steps.plan.outcome }}" = "success" ]; then
-          echo "✅ Plan completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "Plan completed successfully" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ Plan failed - check logs for details" >> $GITHUB_STEP_SUMMARY
+          echo "Plan failed - check logs for details" >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Plan Status
