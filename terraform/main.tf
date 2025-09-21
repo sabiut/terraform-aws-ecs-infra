@@ -75,17 +75,26 @@ module "rds" {
 module "ecs" {
   source = "./modules/ecs"
 
-  project_name              = var.project_name
-  environment               = var.environment
-  vpc_id                    = module.networking.vpc_id
-  public_subnet_id          = module.networking.public_subnet_id
-  private_subnet_id         = module.networking.private_subnet_id
-  frontend_security_group_id = module.security.frontend_security_group_id
-  backend_security_group_id  = module.security.backend_security_group_id
-  alb_target_group_arn      = module.alb.target_group_arn
-  rds_endpoint              = module.rds.rds_endpoint
-  db_secret_arn             = module.rds.db_secret_arn
-  db_name                   = var.db_name
+  project_name                   = var.project_name
+  environment                    = var.environment
+  vpc_id                         = module.networking.vpc_id
+  public_subnet_id               = module.networking.public_subnet_id
+  private_subnet_id              = module.networking.private_subnet_id
+  frontend_security_group_id     = module.security.frontend_security_group_id
+  backend_security_group_id      = module.security.backend_security_group_id
+
+  # Blue/Green Target Group ARNs
+  frontend_blue_target_group_arn  = module.alb.frontend_blue_target_group_arn
+  frontend_green_target_group_arn = module.alb.frontend_green_target_group_arn
+  backend_blue_target_group_arn   = module.alb.backend_blue_target_group_arn
+  backend_green_target_group_arn  = module.alb.backend_green_target_group_arn
+
+  # Legacy for backward compatibility
+  alb_target_group_arn           = module.alb.target_group_arn
+
+  rds_endpoint                   = module.rds.rds_endpoint
+  db_secret_arn                  = module.rds.db_secret_arn
+  db_name                        = var.db_name
 
   tags = local.common_tags
 }
