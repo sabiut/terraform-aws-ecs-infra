@@ -275,8 +275,17 @@ Key outputs include:
 
 ### Container Images
 
-The infrastructure uses placeholder nginx images. Replace these in the ECS task definitions with your actual application images:
+The infrastructure uses placeholder nginx images initially. You have two options for deployment:
 
+#### **Option 1: Automated CI/CD (Recommended)**
+Use the [CI/CD pipeline](https://github.com/sabiut/aws-ecs-cicd-pipeline) for automated deployment:
+- Automatically builds and pushes Docker images to ECR
+- Updates ECS services with new images
+- Includes health checks and rollback capabilities
+- No manual image updates required
+
+#### **Option 2: Manual Deployment**
+Replace these in the ECS task definitions with your actual application images:
 1. **Frontend**: Update `modules/ecs/main.tf` - line with `image = "nginx:latest"`
 2. **Backend**: Update `modules/ecs/main.tf` - line with `image = "nginx:latest"`
 
@@ -386,6 +395,53 @@ aws logs tail /ecs/<project>-<environment>-frontend --follow
 # Check ALB target health
 aws elbv2 describe-target-health --target-group-arn <target-group-arn>
 ```
+
+## CI/CD Integration
+
+This infrastructure is designed to work with automated CI/CD pipelines for application deployment:
+
+### **CI/CD Repository**
+- **Repository**: [aws-ecs-cicd-pipeline](https://github.com/sabiut/aws-ecs-cicd-pipeline)
+- **Purpose**: Provides GitHub Actions workflows and Terraform modules for automated deployment
+- **Features**: ECR repositories, IAM OIDC authentication, automated deployments with rollback
+
+### **Application Repositories**
+- **Django Backend**: [aws-ecs-backend-django](https://github.com/sabiut/aws-ecs-backend-django)
+- **Next.js Frontend**: [aws-ecs-frontend-react](https://github.com/sabiut/aws-ecs-frontend-react)
+
+### **ECS Services Created**
+After deploying this infrastructure, the following ECS resources will be available for CI/CD:
+
+```bash
+# ECS Cluster
+ecs-three-tier-dev-cluster
+
+# ECS Services (targets for deployment)
+ecs-three-tier-dev-frontend  # Next.js application
+ecs-three-tier-dev-backend   # Django API
+```
+
+### **Next Steps for CI/CD**
+1. **Deploy this infrastructure first** (you're here)
+2. **Deploy CI/CD infrastructure** using the repository above
+3. **Configure GitHub secrets** for application repositories
+4. **Push to application repositories** to trigger automated deployments
+
+### **Container Image Updates**
+The infrastructure uses placeholder nginx images. The CI/CD pipeline will:
+- Build application-specific Docker images
+- Push to ECR repositories
+- Update ECS services with new images
+- Perform health checks and rollback if needed
+
+## Related Repositories
+
+This infrastructure works with the following repositories:
+
+- **ECS Infrastructure**: [terraform-aws-ecs-infra](https://github.com/sabiut/terraform-aws-ecs-infra) (this repository)
+- **CI/CD Pipeline**: [aws-ecs-cicd-pipeline](https://github.com/sabiut/aws-ecs-cicd-pipeline)
+- **Django Backend**: [aws-ecs-backend-django](https://github.com/sabiut/aws-ecs-backend-django)
+- **Next.js Frontend**: [aws-ecs-frontend-react](https://github.com/sabiut/aws-ecs-frontend-react)
 
 ## Cost Optimization
 
