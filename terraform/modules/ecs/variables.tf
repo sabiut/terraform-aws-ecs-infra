@@ -33,9 +33,33 @@ variable "backend_security_group_id" {
   type        = string
 }
 
-variable "alb_target_group_arn" {
-  description = "ARN of the ALB target group"
+# Blue/Green Target Group ARNs for Frontend
+variable "frontend_blue_target_group_arn" {
+  description = "ARN of the frontend blue target group"
   type        = string
+}
+
+variable "frontend_green_target_group_arn" {
+  description = "ARN of the frontend green target group"
+  type        = string
+}
+
+# Blue/Green Target Group ARNs for Backend
+variable "backend_blue_target_group_arn" {
+  description = "ARN of the backend blue target group"
+  type        = string
+}
+
+variable "backend_green_target_group_arn" {
+  description = "ARN of the backend green target group"
+  type        = string
+}
+
+# Legacy variable for backward compatibility
+variable "alb_target_group_arn" {
+  description = "ARN of the ALB target group (deprecated - use specific blue/green variants)"
+  type        = string
+  default     = ""
 }
 
 variable "rds_endpoint" {
