@@ -25,6 +25,11 @@ jobs:
   terraform-plan:
     name: 'Terraform Plan'
     runs-on: ubuntu-latest
+    # The secrets context is not available in step "if" conditions, so the
+    # checks are evaluated here and the steps test these variables instead.
+    env:
+      HAS_AWS_CREDENTIALS: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+      HAS_STATE_BUCKET: ${{ secrets.TERRAFORM_STATE_BUCKET != '' }}
 
     steps:
     - name: Checkout
@@ -37,7 +42,7 @@ jobs:
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
-      if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+      if: env.HAS_AWS_CREDENTIALS == 'true'
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -59,7 +64,7 @@ jobs:
       working-directory: ${{ env.WORKING_DIR }}
 
     - name: Select Workspace
-      if: ${{ secrets.TERRAFORM_STATE_BUCKET != '' }}
+      if: env.HAS_STATE_BUCKET == 'true'
       run: |
         terraform workspace select ${{ env.TF_ENVIRONMENT }} || terraform workspace new ${{ env.TF_ENVIRONMENT }}
       working-directory: ${{ env.WORKING_DIR }}
@@ -79,7 +84,7 @@ jobs:
 
     - name: Terraform Show Plan
       id: show
-      if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+      if: env.HAS_AWS_CREDENTIALS == 'true'
       run: terraform show -no-color tfplan
       working-directory: ${{ env.WORKING_DIR }}
 
