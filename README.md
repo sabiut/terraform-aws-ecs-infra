@@ -422,10 +422,37 @@ After deploying this infrastructure, the following ECS resources will be availab
 # ECS Cluster
 ecs-three-tier-dev-cluster
 
-# ECS Services (targets for deployment)
-ecs-three-tier-dev-frontend  # Next.js application
-ecs-three-tier-dev-backend   # Django API
+# ECS Services, one pair per tier. Blue is live after the first apply.
+ecs-three-tier-dev-frontend-blue   # Next.js application
+ecs-three-tier-dev-frontend-green
+ecs-three-tier-dev-backend-blue    # Django API
+ecs-three-tier-dev-backend-green
 ```
+
+The service names, target group ARNs, and listener ARNs are exported as Terraform outputs (`frontend_service_names`, `backend_target_group_arns`, `http_listener_arn`, and so on) so the pipeline does not have to hardcode them.
+
+### **Blue/Green Switching**
+
+Each tier has a blue and a green ECS service, each registered with its own target group. The ALB's HTTP listener default action selects the live frontend colour, and the `/api/*`, `/health/*`, `/admin/*` rule selects the live backend colour. A deployment:
+
+1. Registers a new task definition revision and points the **inactive** colour's service at it, scaling it to the desired count.
+2. Waits for the inactive target group to report healthy targets.
+3. Switches the listener default action (frontend) or the listener rule action (backend) to the inactive target group. Traffic moves in one step.
+4. Scales the previously active colour to zero, or leaves it running for a fast rollback.
+
+```bash
+# Example: switch frontend traffic to green
+aws elbv2 modify-listener \
+  --listener-arn "$(terraform output -raw http_listener_arn)" \
+  --default-actions Type=forward,TargetGroupArn="$(terraform output -json frontend_target_group_arns | jq -r .green)"
+
+# Example: switch backend traffic to green
+aws elbv2 modify-rule \
+  --rule-arn "$(terraform output -raw backend_listener_rule_arn)" \
+  --actions Type=forward,TargetGroupArn="$(terraform output -json backend_target_group_arns | jq -r .green)"
+```
+
+Terraform sets the initial state (blue live, green at zero) and then ignores changes to listener actions, service task definitions, and desired counts, so a later `terraform apply` does not undo a switch made by the pipeline. If the listener or a service is ever recreated by Terraform, it comes back pointing at blue; check which colour is live before applying a change that replaces those resources.
 
 ### **Next Steps for CI/CD**
 1. **Deploy this infrastructure first** (you're here)

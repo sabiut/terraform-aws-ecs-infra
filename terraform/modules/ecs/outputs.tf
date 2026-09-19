@@ -34,17 +34,6 @@ output "backend_green_service_name" {
   value       = aws_ecs_service.backend_green.name
 }
 
-# Legacy outputs for backward compatibility
-output "frontend_service_name" {
-  description = "Name of the frontend ECS service (blue active by default)"
-  value       = aws_ecs_service.frontend_blue.name
-}
-
-output "backend_service_name" {
-  description = "Name of the backend ECS service (blue active by default)"
-  value       = aws_ecs_service.backend_blue.name
-}
-
 output "frontend_task_definition_arn" {
   description = "ARN of the frontend task definition"
   value       = aws_ecs_task_definition.frontend.arn

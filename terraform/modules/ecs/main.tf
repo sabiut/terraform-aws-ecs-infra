@@ -214,7 +214,7 @@ resource "aws_ecs_task_definition" "backend" {
   })
 }
 
-# Blue/Green Frontend Services
+# Blue/Green Frontend Services. Blue is the initial active colour.
 resource "aws_ecs_service" "frontend_blue" {
   name            = "${var.project_name}-${var.environment}-frontend-blue"
   cluster         = aws_ecs_cluster.main.id
@@ -238,6 +238,13 @@ resource "aws_ecs_service" "frontend_blue" {
     aws_iam_role_policy_attachment.ecs_task_execution_role_policy
   ]
 
+  # The deployment pipeline registers new task definition revisions and
+  # scales colours up and down during a blue/green switch. Terraform sets the
+  # initial state only and must not revert those changes on the next apply.
+  lifecycle {
+    ignore_changes = [task_definition, desired_count]
+  }
+
   tags = merge(var.tags, {
     Name        = "${var.project_name}-${var.environment}-frontend-blue-service"
     Environment = "blue"
@@ -248,7 +255,7 @@ resource "aws_ecs_service" "frontend_green" {
   name            = "${var.project_name}-${var.environment}-frontend-green"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.frontend.arn
-  desired_count   = 0 # Initially stopped
+  desired_count   = 0 # Inactive colour; the pipeline scales it up before a switch
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -267,46 +274,16 @@ resource "aws_ecs_service" "frontend_green" {
     aws_iam_role_policy_attachment.ecs_task_execution_role_policy
   ]
 
+  # The deployment pipeline registers new task definition revisions and
+  # scales colours up and down during a blue/green switch. Terraform sets the
+  # initial state only and must not revert those changes on the next apply.
+  lifecycle {
+    ignore_changes = [task_definition, desired_count]
+  }
+
   tags = merge(var.tags, {
     Name        = "${var.project_name}-${var.environment}-frontend-green-service"
     Environment = "green"
-  })
-}
-
-# Legacy service for backward compatibility (points to blue)
-resource "aws_ecs_service" "frontend" {
-  name            = "${var.project_name}-${var.environment}-frontend"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.frontend.arn
-  desired_count   = 0 # Disabled in favor of blue/green services
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    security_groups  = [var.frontend_security_group_id]
-    subnets          = [var.public_subnet_id]
-    assign_public_ip = true
-  }
-
-  dynamic "load_balancer" {
-    for_each = var.alb_target_group_arn != "" ? [1] : []
-    content {
-      target_group_arn = var.alb_target_group_arn
-      container_name   = "frontend"
-      container_port   = 8080
-    }
-  }
-
-  depends_on = [
-    aws_iam_role_policy_attachment.ecs_task_execution_role_policy
-  ]
-
-  lifecycle {
-    ignore_changes = [desired_count, task_definition]
-  }
-
-  tags = merge(var.tags, {
-    Name        = "${var.project_name}-${var.environment}-frontend-service"
-    Environment = "legacy"
   })
 }
 
@@ -334,6 +311,13 @@ resource "aws_ecs_service" "backend_blue" {
     aws_iam_role_policy_attachment.ecs_task_execution_role_policy
   ]
 
+  # The deployment pipeline registers new task definition revisions and
+  # scales colours up and down during a blue/green switch. Terraform sets the
+  # initial state only and must not revert those changes on the next apply.
+  lifecycle {
+    ignore_changes = [task_definition, desired_count]
+  }
+
   tags = merge(var.tags, {
     Name        = "${var.project_name}-${var.environment}-backend-blue-service"
     Environment = "blue"
@@ -344,7 +328,7 @@ resource "aws_ecs_service" "backend_green" {
   name            = "${var.project_name}-${var.environment}-backend-green"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 0 # Initially stopped
+  desired_count   = 0 # Inactive colour; the pipeline scales it up before a switch
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -363,37 +347,16 @@ resource "aws_ecs_service" "backend_green" {
     aws_iam_role_policy_attachment.ecs_task_execution_role_policy
   ]
 
+  # The deployment pipeline registers new task definition revisions and
+  # scales colours up and down during a blue/green switch. Terraform sets the
+  # initial state only and must not revert those changes on the next apply.
+  lifecycle {
+    ignore_changes = [task_definition, desired_count]
+  }
+
   tags = merge(var.tags, {
     Name        = "${var.project_name}-${var.environment}-backend-green-service"
     Environment = "green"
-  })
-}
-
-# Legacy service for backward compatibility
-resource "aws_ecs_service" "backend" {
-  name            = "${var.project_name}-${var.environment}-backend"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 0 # Disabled in favor of blue/green services
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    security_groups  = [var.backend_security_group_id]
-    subnets          = [var.private_subnet_id]
-    assign_public_ip = false
-  }
-
-  depends_on = [
-    aws_iam_role_policy_attachment.ecs_task_execution_role_policy
-  ]
-
-  lifecycle {
-    ignore_changes = [desired_count, task_definition]
-  }
-
-  tags = merge(var.tags, {
-    Name        = "${var.project_name}-${var.environment}-backend-service"
-    Environment = "legacy"
   })
 }
 
