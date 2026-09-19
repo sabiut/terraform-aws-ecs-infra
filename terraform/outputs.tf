@@ -8,8 +8,13 @@ output "vpc_id" {
   value       = module.networking.vpc_id
 }
 
+output "public_subnet_ids" {
+  description = "IDs of the public subnets"
+  value       = module.networking.public_subnet_ids
+}
+
 output "public_subnet_id" {
-  description = "ID of the public subnet"
+  description = "ID of the first public subnet"
   value       = module.networking.public_subnet_id
 }
 
@@ -55,11 +60,6 @@ output "ecs_cluster_name" {
 }
 
 output "db_secret_arn" {
-  description = "ARN of the Secrets Manager secret containing database credentials"
+  description = "ARN of the RDS-managed Secrets Manager secret holding the database credentials"
   value       = module.rds.db_secret_arn
-}
-
-output "db_secret_name" {
-  description = "Name of the Secrets Manager secret containing database credentials"
-  value       = module.rds.db_secret_name
 }

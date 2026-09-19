@@ -22,16 +22,16 @@ variable "vpc_cidr" {
   default     = "10.0.0.0/16"
 }
 
-variable "availability_zone" {
-  description = "Availability zone for resources"
-  type        = string
-  default     = "ap-southeast-2a"
+variable "availability_zones" {
+  description = "Availability zones for the public subnets. At least two are required for the ALB; the first also hosts the private and database subnets."
+  type        = list(string)
+  default     = ["ap-southeast-2a", "ap-southeast-2b"]
 }
 
-variable "public_subnet_cidr" {
-  description = "CIDR block for public subnet"
-  type        = string
-  default     = "10.0.1.0/24"
+variable "public_subnet_cidrs" {
+  description = "CIDR blocks for the public subnets, one per availability zone"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.11.0/24"]
 }
 
 variable "private_subnet_cidr" {
@@ -64,8 +64,8 @@ variable "db_username" {
   default     = "admin"
 }
 
-variable "db_password" {
-  description = "Database password"
+variable "certificate_arn" {
+  description = "ARN of an ACM certificate for the ALB HTTPS listener. Leave empty to serve HTTP only."
   type        = string
-  sensitive   = true
+  default     = ""
 }

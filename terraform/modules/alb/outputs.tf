@@ -18,6 +18,11 @@ output "listener_arn" {
   value       = aws_lb_listener.frontend_http.arn
 }
 
+output "https_listener_arn" {
+  description = "ARN of the HTTPS listener, or null when no certificate is configured"
+  value       = one(aws_lb_listener.frontend_https[*].arn)
+}
+
 # Frontend Target Groups
 output "frontend_blue_target_group_arn" {
   description = "ARN of the frontend blue target group"

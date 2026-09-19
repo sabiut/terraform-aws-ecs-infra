@@ -33,12 +33,6 @@ variable "db_username" {
   type        = string
 }
 
-variable "db_password" {
-  description = "Database password"
-  type        = string
-  sensitive   = true
-}
-
 variable "tags" {
   description = "A map of tags to assign to the resource"
   type        = map(string)

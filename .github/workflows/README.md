@@ -63,6 +63,7 @@ Configure these secrets in your GitHub repository settings:
 
 ### Terraform State
 - `TERRAFORM_STATE_BUCKET`: S3 bucket for state storage
+- `TERRAFORM_LOCK_TABLE` (optional): DynamoDB table for state locking; defaults to `terraform-state-locks`, the name the `terraform-backend` project creates
 
 ### Cost Estimation (Optional)
 - `INFRACOST_API_KEY`: Infracost API key (get free at infracost.io)
