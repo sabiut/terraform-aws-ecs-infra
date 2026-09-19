@@ -33,8 +33,8 @@ resource "aws_lb_target_group" "frontend_blue" {
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.project_name}-${var.environment}-frontend-blue"
-    Environment = "blue"
+    Name  = "${var.project_name}-${var.environment}-frontend-blue"
+    Color = "blue"
   })
 }
 
@@ -58,8 +58,8 @@ resource "aws_lb_target_group" "frontend_green" {
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.project_name}-${var.environment}-frontend-green"
-    Environment = "green"
+    Name  = "${var.project_name}-${var.environment}-frontend-green"
+    Color = "green"
   })
 }
 
@@ -84,8 +84,8 @@ resource "aws_lb_target_group" "backend_blue" {
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.project_name}-${var.environment}-backend-blue"
-    Environment = "blue"
+    Name  = "${var.project_name}-${var.environment}-backend-blue"
+    Color = "blue"
   })
 }
 
@@ -109,8 +109,8 @@ resource "aws_lb_target_group" "backend_green" {
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.project_name}-${var.environment}-backend-green"
-    Environment = "green"
+    Name  = "${var.project_name}-${var.environment}-backend-green"
+    Color = "green"
   })
 }
 

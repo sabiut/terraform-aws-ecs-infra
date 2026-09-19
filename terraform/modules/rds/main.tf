@@ -15,7 +15,7 @@ resource "aws_db_instance" "main" {
 
   allocated_storage     = 20
   max_allocated_storage = 100
-  storage_type          = "gp2"
+  storage_type          = "gp3"
   storage_encrypted     = true
 
   db_name  = var.db_name
@@ -32,10 +32,16 @@ resource "aws_db_instance" "main" {
   backup_window           = "03:00-04:00"
   maintenance_window      = "sun:04:00-sun:05:00"
 
-  skip_final_snapshot = true
-  deletion_protection = false
+  # Protected environments keep the instance from being deleted and take a
+  # final snapshot on destroy. Delete a previous final snapshot of the same
+  # name before destroying the same environment a second time.
+  deletion_protection       = var.deletion_protection
+  skip_final_snapshot       = !var.final_snapshot
+  final_snapshot_identifier = var.final_snapshot ? "${var.project_name}-${var.environment}-rds-final" : null
 
-  enabled_cloudwatch_logs_exports = ["error", "general", "slowquery"]
+  # The MySQL general log records every statement and is expensive at any
+  # real traffic level; error and slow query logs cover operational needs.
+  enabled_cloudwatch_logs_exports = ["error", "slowquery"]
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-rds"

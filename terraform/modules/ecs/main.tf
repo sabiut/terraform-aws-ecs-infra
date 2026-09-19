@@ -222,6 +222,13 @@ resource "aws_ecs_service" "frontend_blue" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  # Stop a rollout whose tasks keep failing and roll back to the last
+  # healthy task definition instead of looping until someone notices.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   network_configuration {
     security_groups  = [var.frontend_security_group_id]
     subnets          = [var.public_subnet_id]
@@ -246,8 +253,8 @@ resource "aws_ecs_service" "frontend_blue" {
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.project_name}-${var.environment}-frontend-blue-service"
-    Environment = "blue"
+    Name  = "${var.project_name}-${var.environment}-frontend-blue-service"
+    Color = "blue"
   })
 }
 
@@ -257,6 +264,13 @@ resource "aws_ecs_service" "frontend_green" {
   task_definition = aws_ecs_task_definition.frontend.arn
   desired_count   = 0 # Inactive colour; the pipeline scales it up before a switch
   launch_type     = "FARGATE"
+
+  # Stop a rollout whose tasks keep failing and roll back to the last
+  # healthy task definition instead of looping until someone notices.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   network_configuration {
     security_groups  = [var.frontend_security_group_id]
@@ -282,8 +296,8 @@ resource "aws_ecs_service" "frontend_green" {
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.project_name}-${var.environment}-frontend-green-service"
-    Environment = "green"
+    Name  = "${var.project_name}-${var.environment}-frontend-green-service"
+    Color = "green"
   })
 }
 
@@ -294,6 +308,13 @@ resource "aws_ecs_service" "backend_blue" {
   task_definition = aws_ecs_task_definition.backend.arn
   desired_count   = 1
   launch_type     = "FARGATE"
+
+  # Stop a rollout whose tasks keep failing and roll back to the last
+  # healthy task definition instead of looping until someone notices.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   network_configuration {
     security_groups  = [var.backend_security_group_id]
@@ -319,8 +340,8 @@ resource "aws_ecs_service" "backend_blue" {
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.project_name}-${var.environment}-backend-blue-service"
-    Environment = "blue"
+    Name  = "${var.project_name}-${var.environment}-backend-blue-service"
+    Color = "blue"
   })
 }
 
@@ -330,6 +351,13 @@ resource "aws_ecs_service" "backend_green" {
   task_definition = aws_ecs_task_definition.backend.arn
   desired_count   = 0 # Inactive colour; the pipeline scales it up before a switch
   launch_type     = "FARGATE"
+
+  # Stop a rollout whose tasks keep failing and roll back to the last
+  # healthy task definition instead of looping until someone notices.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   network_configuration {
     security_groups  = [var.backend_security_group_id]
@@ -355,8 +383,8 @@ resource "aws_ecs_service" "backend_green" {
   }
 
   tags = merge(var.tags, {
-    Name        = "${var.project_name}-${var.environment}-backend-green-service"
-    Environment = "green"
+    Name  = "${var.project_name}-${var.environment}-backend-green-service"
+    Color = "green"
   })
 }
 
