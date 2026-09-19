@@ -129,7 +129,8 @@ graph LR
 │       ├── security/         # Security groups
 │       ├── alb/              # Application Load Balancer
 │       ├── ecs/              # ECS cluster and services
-│       └── rds/              # RDS database
+│       ├── rds/              # RDS database
+│       └── monitoring/       # CloudWatch alarms and SNS topic
 └── .github/
     └── workflows/            # CI/CD workflows
 ```
@@ -215,12 +216,12 @@ project_name = "your-project-name"
 environment  = "dev"
 
 # Network Configuration (customize if needed)
-# The ALB requires public subnets, and RDS requires database subnets, in at
-# least two availability zones. Lists are matched to availability_zones by index.
+# Public, private and database subnets are created one per availability zone,
+# matched to availability_zones by index. ALB and RDS require at least two.
 vpc_cidr              = "10.0.0.0/16"
 availability_zones    = ["ap-southeast-2a", "ap-southeast-2b"]
 public_subnet_cidrs   = ["10.0.1.0/24", "10.0.11.0/24"]
-private_subnet_cidr   = "10.0.2.0/24"
+private_subnet_cidrs  = ["10.0.2.0/24", "10.0.12.0/24"]
 database_subnet_cidrs = ["10.0.3.0/24", "10.0.4.0/24"]
 
 # Database Configuration
@@ -325,16 +326,30 @@ curl http://<alb-dns-name>
 
 ## Customization
 
-### Scaling
+### Sizing and Production Settings
 
-Modify desired count in `modules/ecs/main.tf`:
+Task size, task count, log retention and database topology are variables with development defaults. A production `terraform.tfvars` looks like:
 
 ```hcl
-resource "aws_ecs_service" "frontend" {
-  desired_count = 2  # Scale to 2 instances
-  # ...
-}
+environment            = "prod"
+
+frontend_cpu           = 512
+frontend_memory        = 1024
+frontend_desired_count = 2
+backend_cpu            = 512
+backend_memory         = 1024
+backend_desired_count  = 2
+log_retention_days     = 90
+
+db_instance_class      = "db.t3.small"
+db_multi_az            = true
+
+certificate_arn        = "arn:aws:acm:ap-southeast-2:123456789012:certificate/..."
+alarm_email            = "ops@example.com"
+test_listener_cidr_blocks = ["203.0.113.0/24"]
 ```
+
+Setting `environment = "prod"` also turns on RDS deletion protection and a final snapshot. The desired counts are the initial values for the active colour; the deployment pipeline owns them afterwards. Fargate accepts only certain CPU and memory pairings, so check the [task size table](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-cpu-memory-error.html) when changing them.
 
 ### SSL/TLS
 
@@ -344,15 +359,13 @@ To enable HTTPS:
 2. Set `certificate_arn` in `terraform.tfvars` to the certificate's ARN
 3. Run `terraform apply`
 
-The HTTPS listener is only created when `certificate_arn` is set. Without it the ALB serves HTTP only.
+The HTTPS listener is only created when `certificate_arn` is set. Without it the ALB serves the application on HTTP. With it, port 80 only redirects to HTTPS with a 301, and the forwarding HTTP listener and its backend rule are not created, so `http_listener_arn` and `backend_listener_rule_arn` are null and the pipeline only switches the HTTPS and test listeners.
 
 ### Multi-AZ Deployment
 
-The public and database subnets already span two availability zones, which the ALB and RDS require. To spread the rest of the stack:
+Public, private and database subnets are each created one per entry in `availability_zones`, two by default. Frontend tasks are spread across the public subnets and backend tasks across the private subnets, so losing one AZ leaves the other serving. The database runs in a single AZ unless `db_multi_az = true`, which adds a synchronous standby in the second AZ and roughly doubles the instance cost.
 
-1. Add more entries to `availability_zones`, `public_subnet_cidrs`, and `database_subnet_cidrs`
-2. Add private subnets in the additional AZs
-3. Configure ECS services across multiple subnets and set `multi_az` on the RDS instance
+The one single-AZ component is the NAT gateway in the first public subnet. If that AZ fails, backend tasks in the other AZ lose outbound internet access (image pulls, external APIs) until it recovers. A NAT gateway per AZ removes that dependency at about double the NAT cost.
 
 ## Security Considerations
 
@@ -367,10 +380,25 @@ The public and database subnets already span two availability zones, which the A
 
 The infrastructure includes:
 
-- **CloudWatch Logs**: ECS container logs
+- **CloudWatch Logs**: ECS container logs, retention set by `log_retention_days`
 - **Container Insights**: ECS cluster monitoring
 - **Deployment circuit breaker**: Each ECS service stops a rollout whose tasks keep failing and rolls back to the last healthy task definition
 - **RDS Monitoring**: Database performance metrics
+
+### Alarms
+
+The `monitoring` module creates CloudWatch alarms for the conditions that need a person:
+
+| Alarm | Condition |
+|---|---|
+| `<project>-<env>-<tier>-<colour>-unhealthy-targets` | Any target failing ALB health checks for 3 minutes, one alarm per target group |
+| `<project>-<env>-alb-5xx` | More than 10 ALB-generated 5xx in 5 minutes (no healthy targets, timeouts) |
+| `<project>-<env>-target-5xx` | More than 25 application 5xx in 5 minutes |
+| `<project>-<env>-rds-cpu` | Database CPU above 80% for 15 minutes |
+| `<project>-<env>-rds-free-storage` | Free storage below 2 GiB |
+| `<project>-<env>-rds-freeable-memory` | Freeable memory below 256 MiB for 15 minutes |
+
+Alarms always exist and are visible in the CloudWatch console. To be notified, set `alarm_email`, which creates an SNS topic and an email subscription that must be confirmed from the email AWS sends, or pass existing topic ARNs in `alarm_actions`. Thresholds are module variables if the defaults do not fit.
 
 ## Cleanup
 
@@ -491,10 +519,7 @@ This infrastructure works with the following repositories:
 
 ## Cost Optimization
 
-For development environments:
-- Use `db.t3.micro` for RDS (included in free tier)
-- Set ECS desired count to 1
-- Consider using Spot instances for non-critical workloads
+For development environments the defaults already apply: `db.t3.micro`, single-AZ database, one task per active colour, 256 CPU / 512 MiB tasks, 7 day log retention. The main fixed costs are the NAT gateway and the ALB, which run regardless of load. Destroy environments you are not using.
 
 ## Support
 

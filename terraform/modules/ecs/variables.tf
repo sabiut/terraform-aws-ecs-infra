@@ -13,14 +13,49 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "public_subnet_id" {
-  description = "ID of the public subnet"
-  type        = string
+variable "public_subnet_ids" {
+  description = "Public subnets the frontend tasks are spread across"
+  type        = list(string)
 }
 
-variable "private_subnet_id" {
-  description = "ID of the private subnet"
-  type        = string
+variable "private_subnet_ids" {
+  description = "Private subnets the backend tasks are spread across"
+  type        = list(string)
+}
+
+variable "frontend_cpu" {
+  description = "Fargate CPU units for the frontend task"
+  type        = number
+}
+
+variable "frontend_memory" {
+  description = "Fargate memory in MiB for the frontend task"
+  type        = number
+}
+
+variable "backend_cpu" {
+  description = "Fargate CPU units for the backend task"
+  type        = number
+}
+
+variable "backend_memory" {
+  description = "Fargate memory in MiB for the backend task"
+  type        = number
+}
+
+variable "frontend_desired_count" {
+  description = "Initial task count for the active frontend colour"
+  type        = number
+}
+
+variable "backend_desired_count" {
+  description = "Initial task count for the active backend colour"
+  type        = number
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch log retention for container logs"
+  type        = number
 }
 
 variable "frontend_security_group_id" {

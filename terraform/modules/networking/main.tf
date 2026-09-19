@@ -32,13 +32,17 @@ resource "aws_subnet" "public" {
   })
 }
 
+# One private subnet per entry, matched to availability_zones by index. All of
+# them route out through the single NAT gateway in the first public subnet.
 resource "aws_subnet" "private" {
+  count = length(var.private_subnet_cidrs)
+
   vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidr
-  availability_zone = var.availability_zones[0]
+  cidr_block        = var.private_subnet_cidrs[count.index]
+  availability_zone = var.availability_zones[count.index]
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-private-subnet"
+    Name = "${var.project_name}-${var.environment}-private-subnet-${count.index + 1}"
     Type = "Private"
   })
 }
@@ -111,7 +115,9 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_route_table_association" "private" {
-  subnet_id      = aws_subnet.private.id
+  count = length(aws_subnet.private)
+
+  subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
 }
 
@@ -142,4 +148,14 @@ moved {
 moved {
   from = aws_route_table_association.database
   to   = aws_route_table_association.database[0]
+}
+
+moved {
+  from = aws_subnet.private
+  to   = aws_subnet.private[0]
+}
+
+moved {
+  from = aws_route_table_association.private
+  to   = aws_route_table_association.private[0]
 }

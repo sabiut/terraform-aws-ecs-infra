@@ -144,7 +144,14 @@ resource "aws_lb_target_group" "backend_green" {
   })
 }
 
+# Without a certificate, port 80 serves the application. With one, port 80
+# only redirects to HTTPS (see http_redirect below). These are two resources
+# rather than one conditional action because the forwarding listener ignores
+# changes to its default action so the pipeline can switch colours, and that
+# would also swallow a change from forward to redirect.
 resource "aws_lb_listener" "frontend_http" {
+  count = var.certificate_arn == "" ? 1 : 0
+
   load_balancer_arn = aws_lb.main.arn
   port              = "80"
   protocol          = "HTTP"
@@ -168,7 +175,9 @@ resource "aws_lb_listener" "frontend_http" {
 
 # Listener rule for backend API traffic
 resource "aws_lb_listener_rule" "backend_api" {
-  listener_arn = aws_lb_listener.frontend_http.arn
+  count = var.certificate_arn == "" ? 1 : 0
+
+  listener_arn = aws_lb_listener.frontend_http[0].arn
   priority     = 100
 
   action {
@@ -189,6 +198,28 @@ resource "aws_lb_listener_rule" "backend_api" {
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-backend-rule"
+  })
+}
+
+resource "aws_lb_listener" "http_redirect" {
+  count = var.certificate_arn != "" ? 1 : 0
+
+  load_balancer_arn = aws_lb.main.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-http-redirect-listener"
   })
 }
 
