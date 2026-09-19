@@ -24,13 +24,13 @@ provider "aws" {
 module "networking" {
   source = "./modules/networking"
 
-  project_name         = var.project_name
-  environment          = var.environment
-  vpc_cidr             = var.vpc_cidr
-  availability_zones   = var.availability_zones
-  public_subnet_cidrs  = var.public_subnet_cidrs
-  private_subnet_cidr  = var.private_subnet_cidr
-  database_subnet_cidr = var.database_subnet_cidr
+  project_name          = var.project_name
+  environment           = var.environment
+  vpc_cidr              = var.vpc_cidr
+  availability_zones    = var.availability_zones
+  public_subnet_cidrs   = var.public_subnet_cidrs
+  private_subnet_cidr   = var.private_subnet_cidr
+  database_subnet_cidrs = var.database_subnet_cidrs
 
   tags = local.common_tags
 }
@@ -63,7 +63,7 @@ module "rds" {
 
   project_name          = var.project_name
   environment           = var.environment
-  database_subnet_id    = module.networking.database_subnet_id
+  database_subnet_ids   = module.networking.database_subnet_ids
   rds_security_group_id = module.security.rds_security_group_id
   db_instance_class     = var.db_instance_class
   db_name               = var.db_name
@@ -102,4 +102,11 @@ locals {
     Environment = var.environment
     ManagedBy   = "Terraform"
   }
+}
+
+# The RDS module used to create its own second database subnet. It now lives
+# in the networking module; keep the existing subnet rather than replacing it.
+moved {
+  from = module.rds.aws_subnet.additional_db_subnet
+  to   = module.networking.aws_subnet.database[1]
 }

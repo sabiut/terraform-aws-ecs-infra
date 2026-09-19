@@ -1,29 +1,10 @@
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-${var.environment}-db-subnet-group"
-  subnet_ids = [var.database_subnet_id, aws_subnet.additional_db_subnet.id]
+  subnet_ids = var.database_subnet_ids
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-db-subnet-group"
   })
-}
-
-resource "aws_subnet" "additional_db_subnet" {
-  vpc_id            = data.aws_subnet.database.vpc_id
-  cidr_block        = "10.0.4.0/24"
-  availability_zone = data.aws_availability_zones.available.names[1]
-
-  tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-additional-db-subnet"
-    Type = "Database"
-  })
-}
-
-data "aws_subnet" "database" {
-  id = var.database_subnet_id
 }
 
 resource "aws_db_instance" "main" {

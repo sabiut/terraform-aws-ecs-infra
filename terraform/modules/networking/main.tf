@@ -43,13 +43,17 @@ resource "aws_subnet" "private" {
   })
 }
 
+# One database subnet per availability zone. An RDS subnet group requires
+# subnets in at least two AZs, so at least two CIDRs must be supplied.
 resource "aws_subnet" "database" {
+  count = length(var.database_subnet_cidrs)
+
   vpc_id            = aws_vpc.main.id
-  cidr_block        = var.database_subnet_cidr
-  availability_zone = var.availability_zones[0]
+  cidr_block        = var.database_subnet_cidrs[count.index]
+  availability_zone = var.availability_zones[count.index]
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-database-subnet"
+    Name = "${var.project_name}-${var.environment}-database-subnet-${count.index + 1}"
     Type = "Database"
   })
 }
@@ -112,7 +116,9 @@ resource "aws_route_table_association" "private" {
 }
 
 resource "aws_route_table_association" "database" {
-  subnet_id      = aws_subnet.database.id
+  count = length(aws_subnet.database)
+
+  subnet_id      = aws_subnet.database[count.index].id
   route_table_id = aws_route_table.private.id
 }
 
@@ -126,4 +132,14 @@ moved {
 moved {
   from = aws_route_table_association.public
   to   = aws_route_table_association.public[0]
+}
+
+moved {
+  from = aws_subnet.database
+  to   = aws_subnet.database[0]
+}
+
+moved {
+  from = aws_route_table_association.database
+  to   = aws_route_table_association.database[0]
 }

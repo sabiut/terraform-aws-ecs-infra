@@ -23,7 +23,7 @@ graph TB
                 BE[Backend ECS Service<br/>Port 8080<br/>Fargate]
             end
 
-            subgraph DB["Database Subnet 10.0.3.0/24"]
+            subgraph DB["Database Subnets 10.0.3.0/24, 10.0.4.0/24"]
                 RDS[(RDS MySQL<br/>db.t3.micro<br/>Port 3306)]
             end
         end
@@ -52,7 +52,7 @@ The infrastructure consists of:
 - **VPC**: 10.0.0.0/16 CIDR block
 - **Public Subnet**: 10.0.1.0/24 (for ALB and frontend)
 - **Private Subnet**: 10.0.2.0/24 (for backend services)
-- **Database Subnet**: 10.0.3.0/24 (for RDS)
+- **Database Subnets**: 10.0.3.0/24 and 10.0.4.0/24, one per availability zone (for RDS)
 - **Internet Gateway**: For public internet access
 - **NAT Gateway**: For private subnet outbound access
 
@@ -70,7 +70,7 @@ The infrastructure consists of:
 
 ### Database Layer
 - **RDS MySQL**: db.t3.micro instance with automated backups
-- **Multi-AZ subnet group**: For high availability
+- **Subnet group across two AZs**: Required by RDS; the instance itself is single-AZ unless `multi_az` is enabled
 
 ## Security Groups Flow Diagram
 
@@ -214,12 +214,13 @@ project_name = "your-project-name"
 environment  = "dev"
 
 # Network Configuration (customize if needed)
-# The ALB requires public subnets in at least two availability zones.
-vpc_cidr             = "10.0.0.0/16"
-availability_zones   = ["ap-southeast-2a", "ap-southeast-2b"]
-public_subnet_cidrs  = ["10.0.1.0/24", "10.0.11.0/24"]
-private_subnet_cidr  = "10.0.2.0/24"
-database_subnet_cidr = "10.0.3.0/24"
+# The ALB requires public subnets, and RDS requires database subnets, in at
+# least two availability zones. Lists are matched to availability_zones by index.
+vpc_cidr              = "10.0.0.0/16"
+availability_zones    = ["ap-southeast-2a", "ap-southeast-2b"]
+public_subnet_cidrs   = ["10.0.1.0/24", "10.0.11.0/24"]
+private_subnet_cidr   = "10.0.2.0/24"
+database_subnet_cidrs = ["10.0.3.0/24", "10.0.4.0/24"]
 
 # Database Configuration
 # RDS generates the master password and stores it in Secrets Manager.
@@ -339,10 +340,10 @@ The HTTPS listener is only created when `certificate_arn` is set. Without it the
 
 ### Multi-AZ Deployment
 
-The public subnets already span two availability zones, which the ALB requires. To spread the rest of the stack:
+The public and database subnets already span two availability zones, which the ALB and RDS require. To spread the rest of the stack:
 
-1. Add more entries to `availability_zones` and `public_subnet_cidrs`
-2. Add private and database subnets in the additional AZs
+1. Add more entries to `availability_zones`, `public_subnet_cidrs`, and `database_subnet_cidrs`
+2. Add private subnets in the additional AZs
 3. Configure ECS services across multiple subnets and set `multi_az` on the RDS instance
 
 ## Security Considerations

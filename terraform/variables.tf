@@ -40,10 +40,10 @@ variable "private_subnet_cidr" {
   default     = "10.0.2.0/24"
 }
 
-variable "database_subnet_cidr" {
-  description = "CIDR block for database subnet"
-  type        = string
-  default     = "10.0.3.0/24"
+variable "database_subnet_cidrs" {
+  description = "CIDR blocks for the database subnets, one per availability zone. RDS requires at least two."
+  type        = list(string)
+  default     = ["10.0.3.0/24", "10.0.4.0/24"]
 }
 
 variable "db_instance_class" {

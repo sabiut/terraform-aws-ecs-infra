@@ -8,9 +8,14 @@ variable "environment" {
   type        = string
 }
 
-variable "database_subnet_id" {
-  description = "ID of the database subnet"
-  type        = string
+variable "database_subnet_ids" {
+  description = "IDs of the database subnets for the RDS subnet group (at least two, in different availability zones)"
+  type        = list(string)
+
+  validation {
+    condition     = length(var.database_subnet_ids) >= 2
+    error_message = "An RDS subnet group requires at least two subnets in different availability zones."
+  }
 }
 
 variable "rds_security_group_id" {

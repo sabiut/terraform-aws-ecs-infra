@@ -18,9 +18,9 @@ output "private_subnet_id" {
   value       = aws_subnet.private.id
 }
 
-output "database_subnet_id" {
-  description = "ID of the database subnet"
-  value       = aws_subnet.database.id
+output "database_subnet_ids" {
+  description = "IDs of the database subnets, one per availability zone"
+  value       = aws_subnet.database[*].id
 }
 
 output "internet_gateway_id" {

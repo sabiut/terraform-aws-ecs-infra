@@ -23,9 +23,9 @@ output "private_subnet_id" {
   value       = module.networking.private_subnet_id
 }
 
-output "database_subnet_id" {
-  description = "ID of the database subnet"
-  value       = module.networking.database_subnet_id
+output "database_subnet_ids" {
+  description = "IDs of the database subnets"
+  value       = module.networking.database_subnet_ids
 }
 
 output "alb_security_group_id" {
