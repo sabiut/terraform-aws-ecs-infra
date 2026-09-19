@@ -3,9 +3,14 @@ output "vpc_id" {
   value       = aws_vpc.main.id
 }
 
+output "public_subnet_ids" {
+  description = "IDs of the public subnets, one per availability zone"
+  value       = aws_subnet.public[*].id
+}
+
 output "public_subnet_id" {
-  description = "ID of the public subnet"
-  value       = aws_subnet.public.id
+  description = "ID of the first public subnet (hosts the NAT gateway and frontend tasks)"
+  value       = aws_subnet.public[0].id
 }
 
 output "private_subnet_id" {

@@ -3,7 +3,7 @@ resource "aws_lb" "main" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [var.alb_security_group_id]
-  subnets            = [var.public_subnet_id]
+  subnets            = var.public_subnet_ids
 
   enable_deletion_protection = false
 
@@ -33,7 +33,7 @@ resource "aws_lb_target_group" "frontend_blue" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-frontend-blue"
+    Name        = "${var.project_name}-${var.environment}-frontend-blue"
     Environment = "blue"
   })
 }
@@ -58,7 +58,7 @@ resource "aws_lb_target_group" "frontend_green" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-frontend-green"
+    Name        = "${var.project_name}-${var.environment}-frontend-green"
     Environment = "green"
   })
 }
@@ -84,7 +84,7 @@ resource "aws_lb_target_group" "backend_blue" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-backend-blue"
+    Name        = "${var.project_name}-${var.environment}-backend-blue"
     Environment = "blue"
   })
 }
@@ -109,7 +109,7 @@ resource "aws_lb_target_group" "backend_green" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-backend-green"
+    Name        = "${var.project_name}-${var.environment}-backend-green"
     Environment = "green"
   })
 }
@@ -150,23 +150,45 @@ resource "aws_lb_listener_rule" "backend_api" {
   })
 }
 
+# HTTPS is only created once an ACM certificate is supplied. AWS rejects an
+# HTTPS listener with no certificate, so the listener is gated on the variable.
 resource "aws_lb_listener" "frontend_https" {
+  count = var.certificate_arn != "" ? 1 : 0
+
   load_balancer_arn = aws_lb.main.arn
   port              = "443"
   protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.certificate_arn
 
   default_action {
-    type             = "fixed-response"
-
-    fixed_response {
-      content_type = "text/plain"
-      message_body = "HTTPS listener configured - SSL certificate needed"
-      status_code  = "200"
-    }
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend_blue.arn
   }
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-https-listener"
+  })
+}
+
+resource "aws_lb_listener_rule" "backend_api_https" {
+  count = var.certificate_arn != "" ? 1 : 0
+
+  listener_arn = aws_lb_listener.frontend_https[0].arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend_blue.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/*", "/health/*", "/admin/*"]
+    }
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-backend-rule-https"
   })
 }

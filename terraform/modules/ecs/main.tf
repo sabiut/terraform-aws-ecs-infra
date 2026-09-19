@@ -115,7 +115,7 @@ resource "aws_ecs_task_definition" "frontend" {
   cpu                      = 256
   memory                   = 512
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn           = aws_iam_role.ecs_task_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
     {
@@ -158,7 +158,7 @@ resource "aws_ecs_task_definition" "backend" {
   cpu                      = 256
   memory                   = 512
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn           = aws_iam_role.ecs_task_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
     {
@@ -194,10 +194,16 @@ resource "aws_ecs_task_definition" "backend" {
           value = var.db_name
         }
       ]
+      # The RDS-managed secret is a JSON document with "username" and
+      # "password" keys; the ":key::" suffix injects a single key.
       secrets = [
         {
-          name      = "DB_CREDENTIALS"
-          valueFrom = var.db_secret_arn
+          name      = "DB_USER"
+          valueFrom = "${var.db_secret_arn}:username::"
+        },
+        {
+          name      = "DB_PASSWORD"
+          valueFrom = "${var.db_secret_arn}:password::"
         }
       ]
     }
@@ -233,7 +239,7 @@ resource "aws_ecs_service" "frontend_blue" {
   ]
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-frontend-blue-service"
+    Name        = "${var.project_name}-${var.environment}-frontend-blue-service"
     Environment = "blue"
   })
 }
@@ -242,7 +248,7 @@ resource "aws_ecs_service" "frontend_green" {
   name            = "${var.project_name}-${var.environment}-frontend-green"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.frontend.arn
-  desired_count   = 0  # Initially stopped
+  desired_count   = 0 # Initially stopped
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -262,7 +268,7 @@ resource "aws_ecs_service" "frontend_green" {
   ]
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-frontend-green-service"
+    Name        = "${var.project_name}-${var.environment}-frontend-green-service"
     Environment = "green"
   })
 }
@@ -272,7 +278,7 @@ resource "aws_ecs_service" "frontend" {
   name            = "${var.project_name}-${var.environment}-frontend"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.frontend.arn
-  desired_count   = 0  # Disabled in favor of blue/green services
+  desired_count   = 0 # Disabled in favor of blue/green services
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -299,7 +305,7 @@ resource "aws_ecs_service" "frontend" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-frontend-service"
+    Name        = "${var.project_name}-${var.environment}-frontend-service"
     Environment = "legacy"
   })
 }
@@ -329,7 +335,7 @@ resource "aws_ecs_service" "backend_blue" {
   ]
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-backend-blue-service"
+    Name        = "${var.project_name}-${var.environment}-backend-blue-service"
     Environment = "blue"
   })
 }
@@ -338,7 +344,7 @@ resource "aws_ecs_service" "backend_green" {
   name            = "${var.project_name}-${var.environment}-backend-green"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 0  # Initially stopped
+  desired_count   = 0 # Initially stopped
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -358,7 +364,7 @@ resource "aws_ecs_service" "backend_green" {
   ]
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-backend-green-service"
+    Name        = "${var.project_name}-${var.environment}-backend-green-service"
     Environment = "green"
   })
 }
@@ -368,7 +374,7 @@ resource "aws_ecs_service" "backend" {
   name            = "${var.project_name}-${var.environment}-backend"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 0  # Disabled in favor of blue/green services
+  desired_count   = 0 # Disabled in favor of blue/green services
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -386,7 +392,7 @@ resource "aws_ecs_service" "backend" {
   }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-backend-service"
+    Name        = "${var.project_name}-${var.environment}-backend-service"
     Environment = "legacy"
   })
 }

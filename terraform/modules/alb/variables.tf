@@ -13,9 +13,20 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "public_subnet_id" {
-  description = "ID of the public subnet"
+variable "public_subnet_ids" {
+  description = "IDs of the public subnets for the ALB (at least two, in different availability zones)"
+  type        = list(string)
+
+  validation {
+    condition     = length(var.public_subnet_ids) >= 2
+    error_message = "An internet-facing ALB requires at least two subnets in different availability zones."
+  }
+}
+
+variable "certificate_arn" {
+  description = "ARN of an ACM certificate for the HTTPS listener. Leave empty to serve HTTP only."
   type        = string
+  default     = ""
 }
 
 variable "alb_security_group_id" {
