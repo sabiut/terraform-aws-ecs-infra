@@ -19,6 +19,7 @@ env:
 
 permissions:
   contents: read
+  id-token: write
   pull-requests: write
 
 jobs:
@@ -28,7 +29,7 @@ jobs:
     # The secrets context is not available in step "if" conditions, so the
     # checks are evaluated here and the steps test these variables instead.
     env:
-      HAS_AWS_CREDENTIALS: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+      HAS_AWS_CREDENTIALS: ${{ secrets.AWS_ROLE_ARN != '' }}
       HAS_STATE_BUCKET: ${{ secrets.TERRAFORM_STATE_BUCKET != '' }}
 
     steps:
@@ -44,8 +45,8 @@ jobs:
       uses: aws-actions/configure-aws-credentials@v4
       if: env.HAS_AWS_CREDENTIALS == 'true'
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        role-session-name: github-actions-${{ github.run_id }}
         aws-region: ${{ env.AWS_REGION }}
 
     - name: Terraform Init
@@ -72,11 +73,11 @@ jobs:
     - name: Terraform Plan
       id: plan
       run: |
-        if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+        if [ -n "${{ secrets.AWS_ROLE_ARN }}" ]; then
           terraform plan -no-color -out=tfplan
         else
           echo "Skipping plan - AWS credentials not configured"
-          echo "Please add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to repository secrets"
+          echo "Please add AWS_ROLE_ARN (an IAM role trusted by GitHub OIDC) to repository secrets"
           exit 0
         fi
       working-directory: ${{ env.WORKING_DIR }}
@@ -95,7 +96,7 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Plan Status:** ${{ steps.plan.outcome }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        if [ "${{ secrets.AWS_ACCESS_KEY_ID }}" = "" ]; then
+        if [ "${{ secrets.AWS_ROLE_ARN }}" = "" ]; then
           echo "AWS credentials not configured - plan skipped" >> $GITHUB_STEP_SUMMARY
         elif [ "${{ steps.plan.outcome }}" = "success" ]; then
           echo "Plan completed successfully" >> $GITHUB_STEP_SUMMARY

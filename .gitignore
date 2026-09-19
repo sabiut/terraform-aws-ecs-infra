@@ -1,0 +1,36 @@
+# Terraform working directories (providers, module cache)
+**/.terraform/*
+
+# State files and backups; state lives in the S3 backend
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Saved plans
+*.tfplan
+tfplan
+destroy.tfplan
+
+# Variable files hold environment-specific and sensitive values.
+# Keep the committed *.tfvars.example templates.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Local overrides and CLI config
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Editor and OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp

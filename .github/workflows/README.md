@@ -58,8 +58,39 @@ This directory contains GitHub Actions workflows for automating Terraform infras
 Configure these secrets in your GitHub repository settings:
 
 ### AWS Credentials
-- `AWS_ACCESS_KEY_ID`: AWS access key
-- `AWS_SECRET_ACCESS_KEY`: AWS secret key
+- `AWS_ROLE_ARN`: ARN of an IAM role that GitHub Actions assumes through OpenID Connect (OIDC). No long-lived access keys are stored in GitHub.
+
+The workflows request an OIDC token (`permissions: id-token: write`) and exchange it for short-lived credentials with `aws-actions/configure-aws-credentials`. To set this up once per AWS account:
+
+1. Create the GitHub OIDC identity provider in IAM if the account does not have one yet. Provider URL `https://token.actions.githubusercontent.com`, audience `sts.amazonaws.com`. The [aws-ecs-cicd-pipeline](https://github.com/sabiut/aws-ecs-cicd-pipeline) repository already creates this provider; reuse it rather than creating a second one.
+2. Create an IAM role with this trust policy, replacing the account ID and repository:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+           "Federated": "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+         },
+         "Action": "sts:AssumeRoleWithWebIdentity",
+         "Condition": {
+           "StringEquals": {
+             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+           },
+           "StringLike": {
+             "token.actions.githubusercontent.com:sub": "repo:sabiut/terraform-aws-ecs-infra:*"
+           }
+         }
+       }
+     ]
+   }
+   ```
+
+   Tighten the `sub` condition to `repo:sabiut/terraform-aws-ecs-infra:ref:refs/heads/master` or `repo:...:environment:prod` if the role should only be assumable from the default branch or a protected environment.
+3. Attach permissions for the resources Terraform manages (VPC, EC2, ELB, ECS, RDS, IAM, Secrets Manager, CloudWatch Logs) plus read/write on the state bucket and the DynamoDB lock table.
+4. Save the role ARN as the `AWS_ROLE_ARN` repository secret.
 
 ### Terraform State
 - `TERRAFORM_STATE_BUCKET`: S3 bucket for state storage
