@@ -68,6 +68,8 @@ module "rds" {
   db_instance_class     = var.db_instance_class
   db_name               = var.db_name
   db_username           = var.db_username
+  deletion_protection   = local.is_production
+  final_snapshot        = local.is_production
 
   tags = local.common_tags
 }
@@ -97,6 +99,10 @@ module "ecs" {
 }
 
 locals {
+  # Production gets deletion protection and a final RDS snapshot. The destroy
+  # workflow deliberately does not offer prod, matching this.
+  is_production = var.environment == "prod"
+
   common_tags = {
     Project     = var.project_name
     Environment = var.environment

@@ -43,3 +43,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "deletion_protection" {
+  description = "Prevent the RDS instance from being deleted. Enable for production."
+  type        = bool
+  default     = false
+}
+
+variable "final_snapshot" {
+  description = "Take a final snapshot when the RDS instance is destroyed. Enable for production."
+  type        = bool
+  default     = false
+}
