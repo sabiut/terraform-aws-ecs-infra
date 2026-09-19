@@ -118,9 +118,9 @@ resource "aws_ecs_task_definition" "frontend" {
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
-    {
+    merge({
       name  = "frontend"
-      image = "nginx:latest"
+      image = var.frontend_image
       portMappings = [
         {
           containerPort = 8080
@@ -143,7 +143,7 @@ resource "aws_ecs_task_definition" "frontend" {
           value = "8080"
         }
       ]
-    }
+    }, length(var.frontend_command) > 0 ? { command = var.frontend_command } : {})
   ])
 
   tags = merge(var.tags, {
@@ -161,9 +161,9 @@ resource "aws_ecs_task_definition" "backend" {
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
-    {
+    merge({
       name  = "backend"
-      image = "nginx:latest"
+      image = var.backend_image
       portMappings = [
         {
           containerPort = 8080
@@ -206,7 +206,7 @@ resource "aws_ecs_task_definition" "backend" {
           valueFrom = "${var.db_secret_arn}:password::"
         }
       ]
-    }
+    }, length(var.backend_command) > 0 ? { command = var.backend_command } : {})
   ])
 
   tags = merge(var.tags, {

@@ -86,6 +86,21 @@ output "backend_https_listener_rule_arn" {
   value       = module.alb.backend_https_listener_rule_arn
 }
 
+output "test_listener_arn" {
+  description = "ARN of the test listener that fronts the inactive colour"
+  value       = module.alb.test_listener_arn
+}
+
+output "backend_test_listener_rule_arn" {
+  description = "ARN of the backend rule on the test listener"
+  value       = module.alb.backend_test_listener_rule_arn
+}
+
+output "test_url" {
+  description = "URL of the inactive colour for pre-switch validation"
+  value       = "http://${module.alb.alb_dns_name}:${var.test_listener_port}"
+}
+
 output "frontend_target_group_arns" {
   description = "Frontend target group ARNs by colour"
   value = {

@@ -70,6 +70,28 @@ variable "db_name" {
   type        = string
 }
 
+variable "frontend_image" {
+  description = "Container image for the frontend task. Must listen on 8080."
+  type        = string
+}
+
+variable "frontend_command" {
+  description = "Container command override for the frontend. Empty list uses the image's default."
+  type        = list(string)
+  default     = []
+}
+
+variable "backend_image" {
+  description = "Container image for the backend task. Must listen on 8080."
+  type        = string
+}
+
+variable "backend_command" {
+  description = "Container command override for the backend. Empty list uses the image's default."
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   description = "A map of tags to assign to the resource"
   type        = map(string)

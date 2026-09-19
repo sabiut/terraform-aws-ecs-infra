@@ -31,8 +31,8 @@ graph TB
 
     Internet[Internet Users] --> IGW
     IGW --> ALB
-    ALB --> FE
-    FE --> BE
+    ALB -->|default| FE
+    ALB -->|/api/* /health/* /admin/*| BE
     BE --> RDS
     BE -.-> NAT
     NAT -.-> IGW
@@ -57,9 +57,9 @@ The infrastructure consists of:
 - **NAT Gateway**: For private subnet outbound access
 
 ### Security Groups
-- **ALB Security Group**: Allows 80/443 from internet, egress to frontend
+- **ALB Security Group**: Allows 80/443 from internet and the test listener port from `test_listener_cidr_blocks`, egress 8080 to frontend and backend
 - **Frontend Security Group**: Allows 8080 from ALB, egress to backend
-- **Backend Security Group**: Allows 8080 from frontend, egress to RDS
+- **Backend Security Group**: Allows 8080 from ALB and frontend, egress to RDS
 - **RDS Security Group**: Allows 3306 from backend only
 
 ### Compute Layer
@@ -80,7 +80,7 @@ graph LR
         Internet[Internet<br/>0.0.0.0/0]
 
         subgraph "ALB Security Group"
-            ALB_SG[ALB SG<br/>Ingress: 80, 443 from Internet<br/>Egress: 8080 to Frontend SG]
+            ALB_SG[ALB SG<br/>Ingress: 80, 443, test port from Internet<br/>Egress: 8080 to Frontend SG and Backend SG]
         end
 
         subgraph "Frontend Security Group"
@@ -88,7 +88,7 @@ graph LR
         end
 
         subgraph "Backend Security Group"
-            BE_SG[Backend SG<br/>Ingress: 8080 from Frontend SG<br/>Egress: 3306 to RDS SG]
+            BE_SG[Backend SG<br/>Ingress: 8080 from ALB SG and Frontend SG<br/>Egress: 3306 to RDS SG]
         end
 
         subgraph "RDS Security Group"
@@ -98,6 +98,7 @@ graph LR
 
     Internet -->|HTTP/HTTPS| ALB_SG
     ALB_SG -->|Port 8080| FE_SG
+    ALB_SG -->|Port 8080 /api/*| BE_SG
     FE_SG -->|Port 8080| BE_SG
     BE_SG -->|Port 3306| RDS_SG
 
@@ -280,7 +281,7 @@ Key outputs include:
 
 ### Container Images
 
-The infrastructure uses placeholder nginx images initially. You have two options for deployment:
+The task definitions default to `hashicorp/http-echo`, a tiny server that answers 200 on every path on port 8080, so a fresh apply passes health checks before any application image exists. You have two options for deploying real images:
 
 #### **Option 1: Automated CI/CD (Recommended)**
 Use the [CI/CD pipeline](https://github.com/sabiut/aws-ecs-cicd-pipeline) for automated deployment:
@@ -289,10 +290,17 @@ Use the [CI/CD pipeline](https://github.com/sabiut/aws-ecs-cicd-pipeline) for au
 - Includes health checks and rollback capabilities
 - No manual image updates required
 
-#### **Option 2: Manual Deployment**
-Replace these in the ECS task definitions with your actual application images:
-1. **Frontend**: Update `modules/ecs/main.tf` - line with `image = "nginx:latest"`
-2. **Backend**: Update `modules/ecs/main.tf` - line with `image = "nginx:latest"`
+#### **Option 2: Pin images in Terraform**
+Set the image variables in `terraform.tfvars` and clear the placeholder commands so each image's own entrypoint runs:
+
+```hcl
+frontend_image   = "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/frontend:v1"
+frontend_command = []
+backend_image    = "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/backend:v1"
+backend_command  = []
+```
+
+Images must listen on port 8080 and answer the health check paths (`frontend_health_check_path`, default `/api/health`; `backend_health_check_path`, default `/health/`).
 
 ### Environment Variables
 
@@ -438,12 +446,12 @@ The service names, target group ARNs, and listener ARNs are exported as Terrafor
 
 ### **Blue/Green Switching**
 
-Each tier has a blue and a green ECS service, each registered with its own target group. The ALB's HTTP listener default action selects the live frontend colour, and the `/api/*`, `/health/*`, `/admin/*` rule selects the live backend colour. A deployment:
+Each tier has a blue and a green ECS service, each registered with its own target group. The ALB's production listeners (HTTP, and HTTPS when a certificate is configured) select the live colour: the default action picks the frontend, and the `/api/*`, `/health/*`, `/admin/*` rule picks the backend. A **test listener** on `test_listener_port` (default 9000) fronts the inactive colour the same way. It exists so the inactive target groups are attached to the load balancer, which ECS requires before it creates the services and which the ALB requires before it health checks them, and so a release can be exercised at `test_url` before any production traffic moves. A deployment:
 
 1. Registers a new task definition revision and points the **inactive** colour's service at it, scaling it to the desired count.
-2. Waits for the inactive target group to report healthy targets.
-3. Switches the listener default action (frontend) or the listener rule action (backend) to the inactive target group. Traffic moves in one step.
-4. Scales the previously active colour to zero, or leaves it running for a fast rollback.
+2. Waits for the inactive target group to report healthy targets, then smoke tests through `terraform output -raw test_url`.
+3. Swaps the production and test listeners: every production listener (HTTP and HTTPS) and its backend rule move to the new colour, and the test listener and its rule move to the old colour. Switch HTTP and HTTPS in the same step or traffic splits between colours.
+4. Scales the previously active colour to zero, or leaves it running behind the test listener for a fast rollback.
 
 ```bash
 # Example: switch frontend traffic to green
@@ -457,7 +465,7 @@ aws elbv2 modify-rule \
   --actions Type=forward,TargetGroupArn="$(terraform output -json backend_target_group_arns | jq -r .green)"
 ```
 
-Terraform sets the initial state (blue live, green at zero) and then ignores changes to listener actions, service task definitions, and desired counts, so a later `terraform apply` does not undo a switch made by the pipeline. If the listener or a service is ever recreated by Terraform, it comes back pointing at blue; check which colour is live before applying a change that replaces those resources.
+Terraform sets the initial state (blue live, green at zero behind the test listener) and then ignores changes to listener actions, service task definitions, and desired counts, so a later `terraform apply` does not undo a switch made by the pipeline. If the listener or a service is ever recreated by Terraform, it comes back pointing at blue; check which colour is live before applying a change that replaces those resources.
 
 ### **Next Steps for CI/CD**
 1. **Deploy this infrastructure first** (you're here)

@@ -38,9 +38,11 @@ module "networking" {
 module "security" {
   source = "./modules/security"
 
-  project_name = var.project_name
-  environment  = var.environment
-  vpc_id       = module.networking.vpc_id
+  project_name              = var.project_name
+  environment               = var.environment
+  vpc_id                    = module.networking.vpc_id
+  test_listener_port        = var.test_listener_port
+  test_listener_cidr_blocks = var.test_listener_cidr_blocks
 
   tags = local.common_tags
 }
@@ -48,12 +50,16 @@ module "security" {
 module "alb" {
   source = "./modules/alb"
 
-  project_name          = var.project_name
-  environment           = var.environment
-  vpc_id                = module.networking.vpc_id
-  public_subnet_ids     = module.networking.public_subnet_ids
-  alb_security_group_id = module.security.alb_security_group_id
-  certificate_arn       = var.certificate_arn
+  project_name               = var.project_name
+  short_name                 = var.short_name
+  environment                = var.environment
+  vpc_id                     = module.networking.vpc_id
+  public_subnet_ids          = module.networking.public_subnet_ids
+  alb_security_group_id      = module.security.alb_security_group_id
+  certificate_arn            = var.certificate_arn
+  test_listener_port         = var.test_listener_port
+  frontend_health_check_path = var.frontend_health_check_path
+  backend_health_check_path  = var.backend_health_check_path
 
   tags = local.common_tags
 }
@@ -90,6 +96,11 @@ module "ecs" {
   frontend_green_target_group_arn = module.alb.frontend_green_target_group_arn
   backend_blue_target_group_arn   = module.alb.backend_blue_target_group_arn
   backend_green_target_group_arn  = module.alb.backend_green_target_group_arn
+
+  frontend_image   = var.frontend_image
+  frontend_command = var.frontend_command
+  backend_image    = var.backend_image
+  backend_command  = var.backend_command
 
   rds_endpoint  = module.rds.rds_endpoint
   db_secret_arn = module.rds.db_secret_arn

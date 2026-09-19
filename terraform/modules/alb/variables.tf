@@ -34,6 +34,26 @@ variable "alb_security_group_id" {
   type        = string
 }
 
+variable "short_name" {
+  description = "Short project name used where AWS limits names to 32 characters (ALB, target groups)"
+  type        = string
+}
+
+variable "frontend_health_check_path" {
+  description = "HTTP path the ALB probes on frontend tasks"
+  type        = string
+}
+
+variable "backend_health_check_path" {
+  description = "HTTP path the ALB probes on backend tasks"
+  type        = string
+}
+
+variable "test_listener_port" {
+  description = "Port of the HTTP test listener that fronts the inactive colour"
+  type        = number
+}
+
 variable "tags" {
   description = "A map of tags to assign to the resource"
   type        = map(string)

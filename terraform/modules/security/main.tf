@@ -85,6 +85,29 @@ resource "aws_security_group_rule" "alb_egress_frontend" {
   description              = "To Frontend ECS"
 }
 
+resource "aws_security_group_rule" "alb_ingress_test" {
+  type              = "ingress"
+  from_port         = var.test_listener_port
+  to_port           = var.test_listener_port
+  protocol          = "tcp"
+  cidr_blocks       = var.test_listener_cidr_blocks
+  security_group_id = aws_security_group.alb.id
+  description       = "Blue/green test listener"
+}
+
+# The listener routes /api/*, /health/* and /admin/* straight to the backend,
+# so the ALB must be able to reach backend tasks for both traffic and health
+# checks.
+resource "aws_security_group_rule" "alb_egress_backend" {
+  type                     = "egress"
+  from_port                = 8080
+  to_port                  = 8080
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.backend.id
+  security_group_id        = aws_security_group.alb.id
+  description              = "To Backend ECS"
+}
+
 # Frontend Security Group Rules
 resource "aws_security_group_rule" "frontend_ingress_alb" {
   type                     = "ingress"
@@ -117,6 +140,16 @@ resource "aws_security_group_rule" "frontend_egress_https" {
 }
 
 # Backend Security Group Rules
+resource "aws_security_group_rule" "backend_ingress_alb" {
+  type                     = "ingress"
+  from_port                = 8080
+  to_port                  = 8080
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.alb.id
+  security_group_id        = aws_security_group.backend.id
+  description              = "From ALB"
+}
+
 resource "aws_security_group_rule" "backend_ingress_frontend" {
   type                     = "ingress"
   from_port                = 8080
