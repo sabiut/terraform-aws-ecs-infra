@@ -1,5 +1,7 @@
+# ALB and target group names are limited to 32 characters, so they use the
+# short project name. Everything else keeps the full project name.
 resource "aws_lb" "main" {
-  name               = "${var.project_name}-${var.environment}-alb"
+  name               = "${var.short_name}-${var.environment}-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [var.alb_security_group_id]
@@ -14,7 +16,7 @@ resource "aws_lb" "main" {
 
 # Blue/Green Target Groups for Frontend
 resource "aws_lb_target_group" "frontend_blue" {
-  name        = "${var.project_name}-${var.environment}-frontend-blue"
+  name        = "${var.short_name}-${var.environment}-fe-blue"
   port        = 8080
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -25,11 +27,18 @@ resource "aws_lb_target_group" "frontend_blue" {
     healthy_threshold   = 2
     interval            = 30
     matcher             = "200"
-    path                = "/api/health"
+    path                = var.frontend_health_check_path
     port                = "traffic-port"
     protocol            = "HTTP"
     timeout             = 5
     unhealthy_threshold = 2
+  }
+
+  lifecycle {
+    precondition {
+      condition     = length("${var.short_name}-${var.environment}-fe-blue") <= 32
+      error_message = "Target group name exceeds 32 characters; shorten short_name or environment."
+    }
   }
 
   tags = merge(var.tags, {
@@ -39,7 +48,7 @@ resource "aws_lb_target_group" "frontend_blue" {
 }
 
 resource "aws_lb_target_group" "frontend_green" {
-  name        = "${var.project_name}-${var.environment}-frontend-green"
+  name        = "${var.short_name}-${var.environment}-fe-green"
   port        = 8080
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -50,11 +59,18 @@ resource "aws_lb_target_group" "frontend_green" {
     healthy_threshold   = 2
     interval            = 30
     matcher             = "200"
-    path                = "/api/health"
+    path                = var.frontend_health_check_path
     port                = "traffic-port"
     protocol            = "HTTP"
     timeout             = 5
     unhealthy_threshold = 2
+  }
+
+  lifecycle {
+    precondition {
+      condition     = length("${var.short_name}-${var.environment}-fe-green") <= 32
+      error_message = "Target group name exceeds 32 characters; shorten short_name or environment."
+    }
   }
 
   tags = merge(var.tags, {
@@ -65,7 +81,7 @@ resource "aws_lb_target_group" "frontend_green" {
 
 # Blue/Green Target Groups for Backend
 resource "aws_lb_target_group" "backend_blue" {
-  name        = "${var.project_name}-${var.environment}-backend-blue"
+  name        = "${var.short_name}-${var.environment}-be-blue"
   port        = 8080
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -76,11 +92,18 @@ resource "aws_lb_target_group" "backend_blue" {
     healthy_threshold   = 2
     interval            = 30
     matcher             = "200"
-    path                = "/health/"
+    path                = var.backend_health_check_path
     port                = "traffic-port"
     protocol            = "HTTP"
     timeout             = 5
     unhealthy_threshold = 2
+  }
+
+  lifecycle {
+    precondition {
+      condition     = length("${var.short_name}-${var.environment}-be-blue") <= 32
+      error_message = "Target group name exceeds 32 characters; shorten short_name or environment."
+    }
   }
 
   tags = merge(var.tags, {
@@ -90,7 +113,7 @@ resource "aws_lb_target_group" "backend_blue" {
 }
 
 resource "aws_lb_target_group" "backend_green" {
-  name        = "${var.project_name}-${var.environment}-backend-green"
+  name        = "${var.short_name}-${var.environment}-be-green"
   port        = 8080
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -101,11 +124,18 @@ resource "aws_lb_target_group" "backend_green" {
     healthy_threshold   = 2
     interval            = 30
     matcher             = "200"
-    path                = "/health/"
+    path                = var.backend_health_check_path
     port                = "traffic-port"
     protocol            = "HTTP"
     timeout             = 5
     unhealthy_threshold = 2
+  }
+
+  lifecycle {
+    precondition {
+      condition     = length("${var.short_name}-${var.environment}-be-green") <= 32
+      error_message = "Target group name exceeds 32 characters; shorten short_name or environment."
+    }
   }
 
   tags = merge(var.tags, {
@@ -214,5 +244,53 @@ resource "aws_lb_listener_rule" "backend_api_https" {
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-backend-rule-https"
+  })
+}
+
+# Test listener. It fronts the inactive colour (green initially) so that its
+# target groups are attached to the load balancer, which ECS requires before
+# it will create the services, and so the ALB health checks them. A release
+# validates the new colour through this listener, then swaps the production
+# and test listeners together.
+resource "aws_lb_listener" "test" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = var.test_listener_port
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend_green.arn
+  }
+
+  lifecycle {
+    ignore_changes = [default_action]
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-test-listener"
+  })
+}
+
+resource "aws_lb_listener_rule" "backend_api_test" {
+  listener_arn = aws_lb_listener.test.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend_green.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/*", "/health/*", "/admin/*"]
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [action]
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-backend-rule-test"
   })
 }

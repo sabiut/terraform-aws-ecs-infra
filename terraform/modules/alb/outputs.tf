@@ -75,3 +75,13 @@ output "backend_https_listener_rule_arn" {
   description = "ARN of the backend listener rule on the HTTPS listener, or null when no certificate is configured"
   value       = one(aws_lb_listener_rule.backend_api_https[*].arn)
 }
+
+output "test_listener_arn" {
+  description = "ARN of the test listener that fronts the inactive colour"
+  value       = aws_lb_listener.test.arn
+}
+
+output "backend_test_listener_rule_arn" {
+  description = "ARN of the backend listener rule on the test listener"
+  value       = aws_lb_listener_rule.backend_api_test.arn
+}

@@ -3,6 +3,7 @@ aws_region = "ap-southeast-2"
 
 # Project Configuration
 project_name = "ecs-three-tier"
+short_name   = "e3t" # used for ALB and target group names (32 char limit)
 environment  = "dev"
 
 # Network Configuration
@@ -20,6 +21,18 @@ database_subnet_cidrs = ["10.0.3.0/24", "10.0.4.0/24"]
 db_instance_class = "db.t3.micro"
 db_name           = "appdb"
 db_username       = "admin"
+
+# Container images. Defaults are placeholders that answer 200 on port 8080.
+# The deployment pipeline replaces them. To pin your own images here, set the
+# command to [] so the image's own entrypoint is used.
+# frontend_image   = "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/frontend:latest"
+# frontend_command = []
+# backend_image    = "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/backend:latest"
+# backend_command  = []
+
+# Blue/green test listener. Restrict who can reach the inactive colour.
+test_listener_port        = 9000
+test_listener_cidr_blocks = ["0.0.0.0/0"]
 
 # Optional: ACM certificate ARN to enable the HTTPS listener on the ALB.
 # certificate_arn = "arn:aws:acm:ap-southeast-2:123456789012:certificate/..."
