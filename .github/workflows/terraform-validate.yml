@@ -7,16 +7,25 @@ on:
       - master
     paths:
       - 'terraform/**'
+      - 'terraform-backend/**'
       - '.github/workflows/terraform-validate.yml'
 
 env:
   TERRAFORM_VERSION: '1.5.7'
-  WORKING_DIR: './terraform'
+
+permissions:
+  contents: read
 
 jobs:
   validate:
-    name: 'Terraform Validation'
+    name: 'Validate ${{ matrix.dir }}'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - terraform
+          - terraform-backend
 
     steps:
     - name: Checkout
@@ -27,29 +36,37 @@ jobs:
       with:
         terraform_version: ${{ env.TERRAFORM_VERSION }}
 
+    # Formatting failures fail the job. Run "terraform fmt -recursive" locally.
     - name: Terraform Format Check
       id: fmt
-      run: terraform fmt -check -recursive
-      working-directory: ${{ env.WORKING_DIR }}
-      continue-on-error: true
+      run: terraform fmt -check -recursive -diff
+      working-directory: ${{ matrix.dir }}
 
+    # -lockfile=readonly fails if .terraform.lock.hcl would change, so a
+    # provider bump has to be committed deliberately rather than drifting in CI.
     - name: Terraform Init
       id: init
-      run: terraform init -backend=false
-      working-directory: ${{ env.WORKING_DIR }}
+      if: always() && steps.fmt.outcome != 'cancelled'
+      run: terraform init -backend=false -input=false -lockfile=readonly
+      working-directory: ${{ matrix.dir }}
 
     - name: Terraform Validate
       id: validate
+      if: always() && steps.init.outcome == 'success'
       run: terraform validate -no-color
-      working-directory: ${{ env.WORKING_DIR }}
+      working-directory: ${{ matrix.dir }}
 
     - name: Validation Summary
       if: always()
       run: |
-        echo "### Terraform Validation Results" >> $GITHUB_STEP_SUMMARY
+        echo "### Terraform Validation: ${{ matrix.dir }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
         echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
         echo "| Format | ${{ steps.fmt.outcome }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Init | ${{ steps.init.outcome }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Validate | ${{ steps.validate.outcome }} |" >> $GITHUB_STEP_SUMMARY
+
+    - name: Fail on any check failure
+      if: always() && (steps.fmt.outcome == 'failure' || steps.init.outcome == 'failure' || steps.validate.outcome == 'failure')
+      run: exit 1

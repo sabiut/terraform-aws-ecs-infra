@@ -22,6 +22,14 @@ permissions:
   id-token: write
   pull-requests: write
 
+# A newer push to the same PR cancels the older plan. Plans deliberately do
+# not share the apply/destroy group: cancel-in-progress there could cancel a
+# running apply. A plan that collides with an apply's state lock fails fast
+# and can be re-run.
+concurrency:
+  group: terraform-dev-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   terraform-plan:
     name: 'Terraform Plan'
@@ -53,14 +61,14 @@ jobs:
       id: init
       run: |
         if [ -n "${{ secrets.TERRAFORM_STATE_BUCKET }}" ]; then
-          terraform init \
+          terraform init -input=false -lockfile=readonly \
             -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
             -backend-config="key=terraform.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}" \
             -backend-config="dynamodb_table=${{ secrets.TERRAFORM_LOCK_TABLE || 'terraform-state-locks' }}" \
             -backend-config="encrypt=true"
         else
-          terraform init -backend=false
+          terraform init -backend=false -input=false -lockfile=readonly
         fi
       working-directory: ${{ env.WORKING_DIR }}
 

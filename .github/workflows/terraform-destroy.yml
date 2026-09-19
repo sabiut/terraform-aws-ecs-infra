@@ -50,6 +50,11 @@ jobs:
     needs: confirm-destroy
     if: needs.confirm-destroy.outputs.confirmed == 'true'
     environment: ${{ github.event.inputs.environment }}-destroy
+    # Shares the group with Terraform Apply so a destroy never overlaps an
+    # apply of the same environment.
+    concurrency:
+      group: terraform-${{ github.event.inputs.environment }}
+      cancel-in-progress: false
 
     steps:
     - name: Checkout
@@ -69,7 +74,7 @@ jobs:
 
     - name: Terraform Init
       run: |
-        terraform init \
+        terraform init -input=false -lockfile=readonly \
           -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
           -backend-config="key=terraform.tfstate" \
           -backend-config="region=${{ env.AWS_REGION }}" \
