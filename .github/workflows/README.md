@@ -5,12 +5,12 @@ This directory contains GitHub Actions workflows for automating Terraform infras
 ## Workflows Overview
 
 ### terraform-validate.yml
-**Trigger:** Pull requests to main/master
-**Purpose:** Validates Terraform syntax and formatting
-- Runs `terraform fmt -check`
-- Runs `terraform init`
+**Trigger:** Pull requests to main/master touching `terraform/` or `terraform-backend/`
+**Purpose:** Validates Terraform syntax and formatting in both roots
+- Runs `terraform fmt -check -recursive`; a formatting difference fails the job
+- Runs `terraform init -lockfile=readonly`; a stale `.terraform.lock.hcl` fails the job
 - Runs `terraform validate`
-- Comments results on PR
+- Writes a per-root summary to the job page
 
 ### terraform-plan.yml
 **Trigger:** Pull requests to main/master
@@ -25,8 +25,9 @@ This directory contains GitHub Actions workflows for automating Terraform infras
 **Purpose:** Deploys infrastructure to AWS
 - Supports multiple environments (dev, staging, prod)
 - Runs `terraform apply` with auto-approve
-- Creates GitHub deployment records
-- Outputs deployment results
+- Creates a GitHub deployment record pointing at the ALB URL
+- Writes non-sensitive outputs to the job summary
+- One apply or destroy runs at a time per environment (concurrency group `terraform-<environment>`)
 
 ### security-scan.yml
 **Trigger:** Push, PR, or weekly schedule
@@ -52,6 +53,17 @@ This directory contains GitHub Actions workflows for automating Terraform infras
 - Shows cost diff between base and PR
 - Comments cost breakdown on PR
 - Helps prevent unexpected AWS bills
+
+## Provider Lock Files
+
+Both `terraform/` and `terraform-backend/` commit `.terraform.lock.hcl` with checksums for `linux_amd64`, `darwin_amd64` and `darwin_arm64`. CI runs `terraform init -lockfile=readonly`, so a provider version change must be made deliberately:
+
+```bash
+cd terraform
+terraform init -upgrade
+terraform providers lock -platform=linux_amd64 -platform=darwin_amd64 -platform=darwin_arm64
+git add .terraform.lock.hcl
+```
 
 ## Required Secrets
 

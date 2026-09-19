@@ -30,6 +30,13 @@ env:
 permissions:
   contents: read
   id-token: write
+  deployments: write
+
+# One apply or destroy at a time per environment. Terraform's state lock would
+# make a second run fail anyway; queueing it is friendlier.
+concurrency:
+  group: terraform-${{ github.event.inputs.environment || 'dev' }}
+  cancel-in-progress: false
 
 jobs:
   terraform-apply:
@@ -56,7 +63,7 @@ jobs:
     - name: Terraform Init
       id: init
       run: |
-        terraform init \
+        terraform init -input=false -lockfile=readonly \
           -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
           -backend-config="key=terraform.tfstate" \
           -backend-config="region=${{ env.AWS_REGION }}" \
@@ -84,14 +91,16 @@ jobs:
       run: |
         echo "### Deployment Outputs" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        terraform output -json | jq -r 'to_entries[] | "\(.key): \(.value.value)"' >> $GITHUB_STEP_SUMMARY
+        terraform output -json | jq -r 'to_entries[] | select(.value.sensitive | not) | "\(.key): \(.value.value)"' >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "alb_url=http://$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
       working-directory: ${{ env.WORKING_DIR }}
 
     - name: Create GitHub Deployment
       uses: chrnorm/deployment-action@v2
       with:
         token: '${{ github.token }}'
-        environment-url: ${{ steps.output.outputs.alb_dns_name }}
+        environment-url: ${{ steps.output.outputs.alb_url }}
         environment: ${{ github.event.inputs.environment || 'dev' }}
+        initial-status: success
         description: 'Terraform Apply Completed'
