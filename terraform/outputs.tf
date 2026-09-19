@@ -13,14 +13,9 @@ output "public_subnet_ids" {
   value       = module.networking.public_subnet_ids
 }
 
-output "public_subnet_id" {
-  description = "ID of the first public subnet"
-  value       = module.networking.public_subnet_id
-}
-
-output "private_subnet_id" {
-  description = "ID of the private subnet"
-  value       = module.networking.private_subnet_id
+output "private_subnet_ids" {
+  description = "IDs of the private subnets"
+  value       = module.networking.private_subnet_ids
 }
 
 output "database_subnet_ids" {
@@ -67,7 +62,7 @@ output "db_secret_arn" {
 # Blue/green deployment handles. The deployment pipeline uses these to find
 # the inactive colour, register a new task definition, and switch traffic.
 output "http_listener_arn" {
-  description = "ARN of the ALB HTTP listener whose default action selects the active frontend colour"
+  description = "ARN of the forwarding HTTP listener, or null when a certificate is configured and port 80 only redirects to HTTPS"
   value       = module.alb.listener_arn
 }
 
@@ -77,7 +72,7 @@ output "https_listener_arn" {
 }
 
 output "backend_listener_rule_arn" {
-  description = "ARN of the HTTP listener rule that selects the active backend colour"
+  description = "ARN of the HTTP listener rule that selects the active backend colour, or null when port 80 only redirects"
   value       = module.alb.backend_listener_rule_arn
 }
 
@@ -131,4 +126,14 @@ output "backend_service_names" {
     blue  = module.ecs.backend_blue_service_name
     green = module.ecs.backend_green_service_name
   }
+}
+
+output "alarm_sns_topic_arn" {
+  description = "ARN of the alarm notification topic, or null when alarm_email is not set"
+  value       = module.monitoring.sns_topic_arn
+}
+
+output "alarm_names" {
+  description = "CloudWatch alarms created for this environment"
+  value       = module.monitoring.alarm_names
 }

@@ -13,9 +13,19 @@ output "alb_arn" {
   value       = aws_lb.main.arn
 }
 
+output "alb_arn_suffix" {
+  description = "ARN suffix of the load balancer, for CloudWatch metric dimensions"
+  value       = aws_lb.main.arn_suffix
+}
+
 output "listener_arn" {
-  description = "ARN of the HTTP listener"
-  value       = aws_lb_listener.frontend_http.arn
+  description = "ARN of the forwarding HTTP listener, or null when a certificate is configured and port 80 only redirects"
+  value       = one(aws_lb_listener.frontend_http[*].arn)
+}
+
+output "http_redirect_listener_arn" {
+  description = "ARN of the HTTP to HTTPS redirect listener, or null when no certificate is configured"
+  value       = one(aws_lb_listener.http_redirect[*].arn)
 }
 
 output "https_listener_arn" {
@@ -67,8 +77,8 @@ output "backend_green_target_group_name" {
 
 # Listener Rule ARNs for backend
 output "backend_listener_rule_arn" {
-  description = "ARN of the backend listener rule on the HTTP listener"
-  value       = aws_lb_listener_rule.backend_api.arn
+  description = "ARN of the backend listener rule on the HTTP listener, or null when port 80 only redirects"
+  value       = one(aws_lb_listener_rule.backend_api[*].arn)
 }
 
 output "backend_https_listener_rule_arn" {
@@ -84,4 +94,14 @@ output "test_listener_arn" {
 output "backend_test_listener_rule_arn" {
   description = "ARN of the backend listener rule on the test listener"
   value       = aws_lb_listener_rule.backend_api_test.arn
+}
+
+output "target_group_arn_suffixes" {
+  description = "ARN suffixes of the target groups by tier and colour, for CloudWatch metric dimensions"
+  value = {
+    frontend_blue  = aws_lb_target_group.frontend_blue.arn_suffix
+    frontend_green = aws_lb_target_group.frontend_green.arn_suffix
+    backend_blue   = aws_lb_target_group.backend_blue.arn_suffix
+    backend_green  = aws_lb_target_group.backend_green.arn_suffix
+  }
 }

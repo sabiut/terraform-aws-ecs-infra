@@ -15,10 +15,10 @@ This directory contains GitHub Actions workflows for automating Terraform infras
 ### terraform-plan.yml
 **Trigger:** Pull requests to main/master
 **Purpose:** Creates and displays Terraform execution plan
-- Configures AWS credentials
-- Runs `terraform plan`
-- Comments plan details on PR
-- Shows what resources will be created/modified/destroyed
+- Assumes the OIDC role and selects the `dev` workspace
+- Runs `terraform plan` and prints the plan in the job log
+- Writes a status line to the job summary
+- Skips the plan (and says so) when `AWS_ROLE_ARN` is not configured
 
 ### terraform-apply.yml
 **Trigger:** Push to main/master or manual dispatch
@@ -29,15 +29,6 @@ This directory contains GitHub Actions workflows for automating Terraform infras
 - Writes non-sensitive outputs to the job summary
 - One apply or destroy runs at a time per environment (concurrency group `terraform-<environment>`)
 
-### security-scan.yml
-**Trigger:** Push, PR, or weekly schedule
-**Purpose:** Comprehensive security scanning
-- **TFSec:** Terraform security scanner
-- **Checkov:** Policy-as-code scanner
-- **Terrascan:** IaC security scanner
-- **Trivy:** Vulnerability scanner
-- Uploads results to GitHub Security tab
-
 ### terraform-destroy.yml
 **Trigger:** Manual dispatch only
 **Purpose:** Safely destroys infrastructure
@@ -45,14 +36,6 @@ This directory contains GitHub Actions workflows for automating Terraform infras
 - Environment-specific destruction
 - Creates destroy plan before execution
 - Logs destruction details
-
-### cost-estimate.yml
-**Trigger:** Pull requests
-**Purpose:** Estimates infrastructure costs
-- Uses Infracost for cost analysis
-- Shows cost diff between base and PR
-- Comments cost breakdown on PR
-- Helps prevent unexpected AWS bills
 
 ## Provider Lock Files
 
@@ -108,9 +91,6 @@ The workflows request an OIDC token (`permissions: id-token: write`) and exchang
 - `TERRAFORM_STATE_BUCKET`: S3 bucket for state storage
 - `TERRAFORM_LOCK_TABLE` (optional): DynamoDB table for state locking; defaults to `terraform-state-locks`, the name the `terraform-backend` project creates
 
-### Cost Estimation (Optional)
-- `INFRACOST_API_KEY`: Infracost API key (get free at infracost.io)
-
 ## Environment Protection
 
 For production deployments, configure environment protection rules:
@@ -153,25 +133,23 @@ Add these badges to your main README:
 
 1. **Always run plan before apply** - Review changes in PR before merging
 2. **Use environment protection** - Require approvals for production
-3. **Monitor costs** - Check Infracost reports on PRs
-4. **Review security scans** - Address critical issues before deployment
-5. **Tag resources** - Ensure proper tagging for cost tracking
-6. **Use workspaces** - Separate environments using Terraform workspaces
+3. **Confirm alarm subscriptions** - Click the link in the SNS email after setting `alarm_email`, or alarms will fire silently
+4. **Tag resources** - Ensure proper tagging for cost tracking
+5. **Use workspaces** - Separate environments using Terraform workspaces
 
 ## Troubleshooting
 
 ### Workflow Failures
 
-1. **Authentication errors**: Check AWS credentials in secrets
-2. **State lock errors**: Check S3 bucket and DynamoDB table
+1. **Authentication errors**: Check that `AWS_ROLE_ARN` is set and the role's trust policy allows this repository
+2. **State lock errors**: Check S3 bucket and DynamoDB table; a run queued behind another in the same concurrency group is normal
 3. **Plan failures**: Review Terraform syntax and dependencies
-4. **Security scan failures**: Review and fix security issues
+4. **Lock file errors**: A provider version changed; update `.terraform.lock.hcl` as described under Provider Lock Files
 
 ### Common Issues
 
 - **Missing backend bucket**: Create S3 bucket for state storage first
 - **IAM permissions**: Ensure AWS credentials have necessary permissions
-- **Cost API key**: Register at infracost.io for free API key
 
 ## Contributing
 

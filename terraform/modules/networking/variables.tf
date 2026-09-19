@@ -14,7 +14,7 @@ variable "vpc_cidr" {
 }
 
 variable "availability_zones" {
-  description = "Availability zones, in order. Public and database subnets are created one per zone; the first zone also hosts the private subnet and the NAT gateway."
+  description = "Availability zones, in order. Public, private and database subnets are created one per zone by index; the first zone also hosts the NAT gateway."
   type        = list(string)
 
   validation {
@@ -33,9 +33,14 @@ variable "public_subnet_cidrs" {
   }
 }
 
-variable "private_subnet_cidr" {
-  description = "CIDR block for private subnet"
-  type        = string
+variable "private_subnet_cidrs" {
+  description = "CIDR blocks for the private subnets, one per availability zone. Backend tasks are spread across all of them."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.private_subnet_cidrs) >= 1
+    error_message = "At least one private subnet CIDR is required."
+  }
 }
 
 variable "database_subnet_cidrs" {

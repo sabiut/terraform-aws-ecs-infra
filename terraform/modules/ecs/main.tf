@@ -92,7 +92,7 @@ resource "aws_iam_role" "ecs_task_role" {
 
 resource "aws_cloudwatch_log_group" "frontend" {
   name              = "/ecs/${var.project_name}-${var.environment}-frontend"
-  retention_in_days = 7
+  retention_in_days = var.log_retention_days
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-frontend-logs"
@@ -101,7 +101,7 @@ resource "aws_cloudwatch_log_group" "frontend" {
 
 resource "aws_cloudwatch_log_group" "backend" {
   name              = "/ecs/${var.project_name}-${var.environment}-backend"
-  retention_in_days = 7
+  retention_in_days = var.log_retention_days
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-backend-logs"
@@ -112,8 +112,8 @@ resource "aws_ecs_task_definition" "frontend" {
   family                   = "${var.project_name}-${var.environment}-frontend"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = 256
-  memory                   = 512
+  cpu                      = var.frontend_cpu
+  memory                   = var.frontend_memory
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
@@ -155,8 +155,8 @@ resource "aws_ecs_task_definition" "backend" {
   family                   = "${var.project_name}-${var.environment}-backend"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = 256
-  memory                   = 512
+  cpu                      = var.backend_cpu
+  memory                   = var.backend_memory
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
 
@@ -219,7 +219,7 @@ resource "aws_ecs_service" "frontend_blue" {
   name            = "${var.project_name}-${var.environment}-frontend-blue"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.frontend.arn
-  desired_count   = 1
+  desired_count   = var.frontend_desired_count
   launch_type     = "FARGATE"
 
   # Stop a rollout whose tasks keep failing and roll back to the last
@@ -231,7 +231,7 @@ resource "aws_ecs_service" "frontend_blue" {
 
   network_configuration {
     security_groups  = [var.frontend_security_group_id]
-    subnets          = [var.public_subnet_id]
+    subnets          = var.public_subnet_ids
     assign_public_ip = true
   }
 
@@ -274,7 +274,7 @@ resource "aws_ecs_service" "frontend_green" {
 
   network_configuration {
     security_groups  = [var.frontend_security_group_id]
-    subnets          = [var.public_subnet_id]
+    subnets          = var.public_subnet_ids
     assign_public_ip = true
   }
 
@@ -306,7 +306,7 @@ resource "aws_ecs_service" "backend_blue" {
   name            = "${var.project_name}-${var.environment}-backend-blue"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 1
+  desired_count   = var.backend_desired_count
   launch_type     = "FARGATE"
 
   # Stop a rollout whose tasks keep failing and roll back to the last
@@ -318,7 +318,7 @@ resource "aws_ecs_service" "backend_blue" {
 
   network_configuration {
     security_groups  = [var.backend_security_group_id]
-    subnets          = [var.private_subnet_id]
+    subnets          = var.private_subnet_ids
     assign_public_ip = false
   }
 
@@ -361,7 +361,7 @@ resource "aws_ecs_service" "backend_green" {
 
   network_configuration {
     security_groups  = [var.backend_security_group_id]
-    subnets          = [var.private_subnet_id]
+    subnets          = var.private_subnet_ids
     assign_public_ip = false
   }
 

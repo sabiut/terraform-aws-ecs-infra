@@ -45,10 +45,10 @@ variable "public_subnet_cidrs" {
   default     = ["10.0.1.0/24", "10.0.11.0/24"]
 }
 
-variable "private_subnet_cidr" {
-  description = "CIDR block for private subnet"
-  type        = string
-  default     = "10.0.2.0/24"
+variable "private_subnet_cidrs" {
+  description = "CIDR blocks for the private subnets, one per availability zone. Backend tasks are spread across all of them."
+  type        = list(string)
+  default     = ["10.0.2.0/24", "10.0.12.0/24"]
 }
 
 variable "database_subnet_cidrs" {
@@ -132,4 +132,67 @@ variable "test_listener_cidr_blocks" {
   description = "CIDR blocks allowed to reach the test listener. Restrict to office or CI egress ranges where possible."
   type        = list(string)
   default     = ["0.0.0.0/0"]
+}
+
+# Sizing. Defaults suit a development environment; see the README for a
+# production example.
+variable "frontend_cpu" {
+  description = "Fargate CPU units for the frontend task (256, 512, 1024, ...)"
+  type        = number
+  default     = 256
+}
+
+variable "frontend_memory" {
+  description = "Fargate memory in MiB for the frontend task; must be valid for the chosen CPU"
+  type        = number
+  default     = 512
+}
+
+variable "backend_cpu" {
+  description = "Fargate CPU units for the backend task (256, 512, 1024, ...)"
+  type        = number
+  default     = 256
+}
+
+variable "backend_memory" {
+  description = "Fargate memory in MiB for the backend task; must be valid for the chosen CPU"
+  type        = number
+  default     = 512
+}
+
+variable "frontend_desired_count" {
+  description = "Initial task count for the active frontend colour. The pipeline owns it afterwards."
+  type        = number
+  default     = 1
+}
+
+variable "backend_desired_count" {
+  description = "Initial task count for the active backend colour. The pipeline owns it afterwards."
+  type        = number
+  default     = 1
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch retention for container logs"
+  type        = number
+  default     = 7
+}
+
+variable "db_multi_az" {
+  description = "Run RDS with a synchronous standby in a second availability zone. Roughly doubles the instance cost."
+  type        = bool
+  default     = false
+}
+
+# Alarms
+variable "alarm_email" {
+  description = "Email address for CloudWatch alarm notifications. Leave empty for alarms without notifications."
+  type        = string
+  default     = ""
+}
+
+variable "alarm_actions" {
+  description = "Additional SNS topic ARNs to notify on alarm and recovery"
+  type        = list(string)
+  default     = []
 }

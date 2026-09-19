@@ -55,3 +55,9 @@ variable "final_snapshot" {
   type        = bool
   default     = false
 }
+
+variable "multi_az" {
+  description = "Run a synchronous standby in a second availability zone. Roughly doubles the instance cost; enable for production."
+  type        = bool
+  default     = false
+}
