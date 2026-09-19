@@ -55,13 +55,6 @@ variable "backend_green_target_group_arn" {
   type        = string
 }
 
-# Legacy variable for backward compatibility
-variable "alb_target_group_arn" {
-  description = "ARN of the ALB target group (deprecated - use specific blue/green variants)"
-  type        = string
-  default     = ""
-}
-
 variable "rds_endpoint" {
   description = "RDS instance endpoint"
   type        = string

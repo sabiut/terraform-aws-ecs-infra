@@ -124,6 +124,13 @@ resource "aws_lb_listener" "frontend_http" {
     target_group_arn = aws_lb_target_group.frontend_blue.arn
   }
 
+  # The deployment pipeline switches traffic between the blue and green target
+  # groups by rewriting this action. Terraform sets the initial target (blue)
+  # and must not revert a switch on the next apply.
+  lifecycle {
+    ignore_changes = [default_action]
+  }
+
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-http-listener"
   })
@@ -143,6 +150,11 @@ resource "aws_lb_listener_rule" "backend_api" {
     path_pattern {
       values = ["/api/*", "/health/*", "/admin/*"]
     }
+  }
+
+  # Switched by the deployment pipeline; see the listener above.
+  lifecycle {
+    ignore_changes = [action]
   }
 
   tags = merge(var.tags, {
@@ -166,6 +178,13 @@ resource "aws_lb_listener" "frontend_https" {
     target_group_arn = aws_lb_target_group.frontend_blue.arn
   }
 
+  # The deployment pipeline switches traffic between the blue and green target
+  # groups by rewriting this action. Terraform sets the initial target (blue)
+  # and must not revert a switch on the next apply.
+  lifecycle {
+    ignore_changes = [default_action]
+  }
+
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-https-listener"
   })
@@ -186,6 +205,11 @@ resource "aws_lb_listener_rule" "backend_api_https" {
     path_pattern {
       values = ["/api/*", "/health/*", "/admin/*"]
     }
+  }
+
+  # Switched by the deployment pipeline; see the listener above.
+  lifecycle {
+    ignore_changes = [action]
   }
 
   tags = merge(var.tags, {

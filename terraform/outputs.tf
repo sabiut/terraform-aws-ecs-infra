@@ -63,3 +63,57 @@ output "db_secret_arn" {
   description = "ARN of the RDS-managed Secrets Manager secret holding the database credentials"
   value       = module.rds.db_secret_arn
 }
+
+# Blue/green deployment handles. The deployment pipeline uses these to find
+# the inactive colour, register a new task definition, and switch traffic.
+output "http_listener_arn" {
+  description = "ARN of the ALB HTTP listener whose default action selects the active frontend colour"
+  value       = module.alb.listener_arn
+}
+
+output "https_listener_arn" {
+  description = "ARN of the ALB HTTPS listener, or null when no certificate is configured"
+  value       = module.alb.https_listener_arn
+}
+
+output "backend_listener_rule_arn" {
+  description = "ARN of the HTTP listener rule that selects the active backend colour"
+  value       = module.alb.backend_listener_rule_arn
+}
+
+output "backend_https_listener_rule_arn" {
+  description = "ARN of the HTTPS listener rule that selects the active backend colour, or null"
+  value       = module.alb.backend_https_listener_rule_arn
+}
+
+output "frontend_target_group_arns" {
+  description = "Frontend target group ARNs by colour"
+  value = {
+    blue  = module.alb.frontend_blue_target_group_arn
+    green = module.alb.frontend_green_target_group_arn
+  }
+}
+
+output "backend_target_group_arns" {
+  description = "Backend target group ARNs by colour"
+  value = {
+    blue  = module.alb.backend_blue_target_group_arn
+    green = module.alb.backend_green_target_group_arn
+  }
+}
+
+output "frontend_service_names" {
+  description = "Frontend ECS service names by colour"
+  value = {
+    blue  = module.ecs.frontend_blue_service_name
+    green = module.ecs.frontend_green_service_name
+  }
+}
+
+output "backend_service_names" {
+  description = "Backend ECS service names by colour"
+  value = {
+    blue  = module.ecs.backend_blue_service_name
+    green = module.ecs.backend_green_service_name
+  }
+}

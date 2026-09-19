@@ -89,9 +89,6 @@ module "ecs" {
   backend_blue_target_group_arn   = module.alb.backend_blue_target_group_arn
   backend_green_target_group_arn  = module.alb.backend_green_target_group_arn
 
-  # Legacy for backward compatibility
-  alb_target_group_arn = module.alb.target_group_arn
-
   rds_endpoint  = module.rds.rds_endpoint
   db_secret_arn = module.rds.db_secret_arn
   db_name       = var.db_name

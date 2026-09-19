@@ -65,19 +65,13 @@ output "backend_green_target_group_name" {
   value       = aws_lb_target_group.backend_green.name
 }
 
-# Listener Rule ARN for backend
+# Listener Rule ARNs for backend
 output "backend_listener_rule_arn" {
-  description = "ARN of the backend listener rule"
+  description = "ARN of the backend listener rule on the HTTP listener"
   value       = aws_lb_listener_rule.backend_api.arn
 }
 
-# Legacy outputs for backward compatibility (using blue as active initially)
-output "target_group_arn" {
-  description = "ARN of the active target group (blue initially)"
-  value       = aws_lb_target_group.frontend_blue.arn
-}
-
-output "target_group_name" {
-  description = "Name of the active target group (blue initially)"
-  value       = aws_lb_target_group.frontend_blue.name
+output "backend_https_listener_rule_arn" {
+  description = "ARN of the backend listener rule on the HTTPS listener, or null when no certificate is configured"
+  value       = one(aws_lb_listener_rule.backend_api_https[*].arn)
 }
