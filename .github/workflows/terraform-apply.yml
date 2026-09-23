@@ -23,9 +23,11 @@ env:
   TERRAFORM_VERSION: '1.5.7'
   WORKING_DIR: './terraform'
   AWS_REGION: 'ap-southeast-2'
-  # Terraform reads TF_VAR_environment as var.environment, so each workspace
-  # deploys under its own name instead of every workspace deploying as "dev".
-  TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+  # Each workspace applies its own committed variable file
+  # (terraform/environments/<name>.tfvars), which sets var.environment and
+  # the sizing for that environment. Without it every workspace, including
+  # prod, would apply the development defaults from variables.tf.
+  TF_ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
 
 permissions:
   contents: read
@@ -73,12 +75,12 @@ jobs:
 
     - name: Select Workspace
       run: |
-        terraform workspace select ${{ github.event.inputs.environment || 'dev' }} || terraform workspace new ${{ github.event.inputs.environment || 'dev' }}
+        terraform workspace select ${{ env.TF_ENVIRONMENT }} || terraform workspace new ${{ env.TF_ENVIRONMENT }}
       working-directory: ${{ env.WORKING_DIR }}
 
     - name: Terraform Plan
       id: plan
-      run: terraform plan -no-color -out=tfplan
+      run: terraform plan -no-color -input=false -var-file="environments/${{ env.TF_ENVIRONMENT }}.tfvars" -out=tfplan
       working-directory: ${{ env.WORKING_DIR }}
 
     - name: Terraform Apply

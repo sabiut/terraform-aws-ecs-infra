@@ -12,10 +12,12 @@ tfplan
 destroy.tfplan
 
 # Variable files hold environment-specific and sensitive values.
-# Keep the committed *.tfvars.example templates.
+# Keep the committed *.tfvars.example templates and the per-environment
+# files the workflows apply.
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
+!terraform/environments/*.tfvars
 
 # Local overrides and CLI config
 override.tf

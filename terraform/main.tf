@@ -1,5 +1,7 @@
 terraform {
-  required_version = ">= 1.1"
+  # terraform_data (used to replace the port-80 listener when HTTPS is
+  # turned on or off) needs 1.4.
+  required_version = ">= 1.4"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -100,7 +102,9 @@ module "ecs" {
   backend_desired_count  = var.backend_desired_count
   log_retention_days     = var.log_retention_days
 
-  # Blue/Green Target Group ARNs
+  # Blue/Green Target Group ARNs. These outputs also carry a dependency on
+  # the ALB listeners, so the services are not created before their target
+  # groups are attached to the load balancer.
   frontend_blue_target_group_arn  = module.alb.frontend_blue_target_group_arn
   frontend_green_target_group_arn = module.alb.frontend_green_target_group_arn
   backend_blue_target_group_arn   = module.alb.backend_blue_target_group_arn
@@ -126,6 +130,7 @@ module "monitoring" {
   alb_arn_suffix            = module.alb.alb_arn_suffix
   target_group_arn_suffixes = module.alb.target_group_arn_suffixes
   rds_identifier            = module.rds.rds_identifier
+  db_secret_redeploy_arn    = module.ecs.db_secret_redeploy_state_machine_arn
   alarm_email               = var.alarm_email
   alarm_actions             = var.alarm_actions
 

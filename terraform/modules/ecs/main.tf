@@ -195,7 +195,9 @@ resource "aws_ecs_task_definition" "backend" {
         }
       ]
       # The RDS-managed secret is a JSON document with "username" and
-      # "password" keys; the ":key::" suffix injects a single key.
+      # "password" keys; the ":key::" suffix injects a single key. ECS reads
+      # the secret only at task start; see secret_rotation.tf for how tasks
+      # pick up a rotated password.
       secrets = [
         {
           name      = "DB_USER"

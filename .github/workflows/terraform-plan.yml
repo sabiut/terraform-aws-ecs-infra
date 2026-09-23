@@ -13,9 +13,8 @@ env:
   TERRAFORM_VERSION: '1.5.7'
   WORKING_DIR: './terraform'
   AWS_REGION: 'ap-southeast-2'
-  # Pull request plans run against the dev workspace.
+  # Pull request plans run against the dev workspace with its variable file.
   TF_ENVIRONMENT: dev
-  TF_VAR_environment: dev
 
 permissions:
   contents: read
@@ -82,7 +81,7 @@ jobs:
       id: plan
       run: |
         if [ -n "${{ secrets.AWS_ROLE_ARN }}" ]; then
-          terraform plan -no-color -out=tfplan
+          terraform plan -no-color -input=false -var-file="environments/${{ env.TF_ENVIRONMENT }}.tfvars" -out=tfplan
         else
           echo "Skipping plan - AWS credentials not configured"
           echo "Please add AWS_ROLE_ARN (an IAM role trusted by GitHub OIDC) to repository secrets"
