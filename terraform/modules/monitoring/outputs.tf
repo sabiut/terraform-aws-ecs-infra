@@ -13,6 +13,7 @@ output "alarm_names" {
       aws_cloudwatch_metric_alarm.rds_cpu.alarm_name,
       aws_cloudwatch_metric_alarm.rds_free_storage.alarm_name,
       aws_cloudwatch_metric_alarm.rds_freeable_memory.alarm_name,
+      aws_cloudwatch_metric_alarm.db_secret_redeploy_failed.alarm_name,
     ]
   )
 }

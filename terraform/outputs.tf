@@ -92,7 +92,7 @@ output "backend_test_listener_rule_arn" {
 }
 
 output "test_url" {
-  description = "URL of the inactive colour for pre-switch validation"
+  description = "URL of the inactive colour for pre-switch validation, reachable only from test_listener_cidr_blocks"
   value       = "http://${module.alb.alb_dns_name}:${var.test_listener_port}"
 }
 

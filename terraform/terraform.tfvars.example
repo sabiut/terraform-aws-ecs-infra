@@ -48,12 +48,15 @@ db_multi_az       = false
 # backend_image    = "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/backend:latest"
 # backend_command  = []
 
-# Blue/green test listener. Restrict who can reach the inactive colour.
+# Blue/green test listener. The inactive colour may run an unreleased build,
+# so the listener is unreachable until you list who may reach it (office or
+# CI egress ranges). Leave the list empty to keep it closed.
 test_listener_port        = 9000
-test_listener_cidr_blocks = ["0.0.0.0/0"]
+test_listener_cidr_blocks = [] # e.g. ["203.0.113.0/24"]
 
 # Optional: ACM certificate ARN to enable the HTTPS listener on the ALB.
 # certificate_arn = "arn:aws:acm:ap-southeast-2:123456789012:certificate/..."
 
-# Note: Copy this file to terraform.tfvars and update the values as needed
-# Remember to keep terraform.tfvars out of version control for security
+# Note: Copy this file to terraform.tfvars for local work; CI uses the
+# committed files under environments/ instead. terraform.tfvars is ignored by
+# git so account-specific values stay out of version control.

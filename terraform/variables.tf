@@ -121,7 +121,9 @@ variable "backend_health_check_path" {
 }
 
 # Blue/green test listener. It fronts the inactive colour so a release can be
-# validated at http://<alb-dns>:<port> before traffic is switched.
+# validated at http://<alb-dns>:<port> before traffic is switched. The
+# inactive colour may be running an unreleased build, so the listener is
+# closed until CIDR blocks are given.
 variable "test_listener_port" {
   description = "ALB port for the blue/green test listener"
   type        = number
@@ -129,9 +131,14 @@ variable "test_listener_port" {
 }
 
 variable "test_listener_cidr_blocks" {
-  description = "CIDR blocks allowed to reach the test listener. Restrict to office or CI egress ranges where possible."
+  description = "CIDR blocks allowed to reach the test listener, for example office or CI egress ranges. Empty (the default) leaves the test listener unreachable from outside the VPC."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
+
+  validation {
+    condition     = alltrue([for cidr in var.test_listener_cidr_blocks : can(cidrhost(cidr, 0))])
+    error_message = "Every entry must be an IPv4 CIDR block such as 203.0.113.0/24."
+  }
 }
 
 # Sizing. Defaults suit a development environment; see the README for a

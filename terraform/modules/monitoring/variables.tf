@@ -23,6 +23,11 @@ variable "rds_identifier" {
   type        = string
 }
 
+variable "db_secret_redeploy_arn" {
+  description = "ARN of the Step Functions state machine that redeploys the backend after a database password rotation"
+  type        = string
+}
+
 variable "alarm_email" {
   description = "Email address to notify. Creates an SNS topic and subscription when set; leave empty for alarms without notifications."
   type        = string

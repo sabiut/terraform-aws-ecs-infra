@@ -144,28 +144,50 @@ resource "aws_lb_target_group" "backend_green" {
   })
 }
 
-# Without a certificate, port 80 serves the application. With one, port 80
-# only redirects to HTTPS (see http_redirect below). These are two resources
-# rather than one conditional action because the forwarding listener ignores
-# changes to its default action so the pipeline can switch colours, and that
-# would also swallow a change from forward to redirect.
-resource "aws_lb_listener" "frontend_http" {
-  count = var.certificate_arn == "" ? 1 : 0
+# Port 80. Without a certificate it serves the application; with one it only
+# redirects to HTTPS. This is one resource whose default action depends on the
+# certificate, not two conditional resources, because AWS allows one listener
+# per port and Terraform would otherwise create the new listener while the
+# old one still exists and fail with DuplicateListener. Replacing a single
+# resource always destroys the old listener first.
+#
+# The deployment pipeline rewrites the forwarding action to switch colours, so
+# Terraform ignores changes to default_action. That would also swallow the
+# change between forward and redirect, so the listener is replaced outright
+# whenever the certificate mode flips (see http_listener_mode below).
+resource "terraform_data" "http_listener_mode" {
+  triggers_replace = var.certificate_arn != ""
+}
 
+resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
   port              = "80"
   protocol          = "HTTP"
 
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend_blue.arn
+  dynamic "default_action" {
+    for_each = var.certificate_arn == "" ? [1] : []
+    content {
+      type             = "forward"
+      target_group_arn = aws_lb_target_group.frontend_blue.arn
+    }
   }
 
-  # The deployment pipeline switches traffic between the blue and green target
-  # groups by rewriting this action. Terraform sets the initial target (blue)
-  # and must not revert a switch on the next apply.
+  dynamic "default_action" {
+    for_each = var.certificate_arn != "" ? [1] : []
+    content {
+      type = "redirect"
+
+      redirect {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+  }
+
   lifecycle {
-    ignore_changes = [default_action]
+    ignore_changes       = [default_action]
+    replace_triggered_by = [terraform_data.http_listener_mode]
   }
 
   tags = merge(var.tags, {
@@ -173,11 +195,21 @@ resource "aws_lb_listener" "frontend_http" {
   })
 }
 
-# Listener rule for backend API traffic
+# The forwarding HTTP listener used to be aws_lb_listener.frontend_http[0].
+# A deployment that already runs with a certificate has the redirect listener
+# as aws_lb_listener.http_redirect[0] instead; move it by hand before
+# applying, since Terraform allows only one moved block per destination:
+#   terraform state mv 'module.alb.aws_lb_listener.http_redirect[0]' module.alb.aws_lb_listener.http
+moved {
+  from = aws_lb_listener.frontend_http[0]
+  to   = aws_lb_listener.http
+}
+
+# Listener rule for backend API traffic. Only exists while port 80 forwards.
 resource "aws_lb_listener_rule" "backend_api" {
   count = var.certificate_arn == "" ? 1 : 0
 
-  listener_arn = aws_lb_listener.frontend_http[0].arn
+  listener_arn = aws_lb_listener.http.arn
   priority     = 100
 
   action {
@@ -198,28 +230,6 @@ resource "aws_lb_listener_rule" "backend_api" {
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-backend-rule"
-  })
-}
-
-resource "aws_lb_listener" "http_redirect" {
-  count = var.certificate_arn != "" ? 1 : 0
-
-  load_balancer_arn = aws_lb.main.arn
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    type = "redirect"
-
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
-    }
-  }
-
-  tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-http-redirect-listener"
   })
 }
 
@@ -282,7 +292,9 @@ resource "aws_lb_listener_rule" "backend_api_https" {
 # target groups are attached to the load balancer, which ECS requires before
 # it will create the services, and so the ALB health checks them. A release
 # validates the new colour through this listener, then swaps the production
-# and test listeners together.
+# and test listeners together. The listener always exists, but it is only
+# reachable from test_listener_cidr_blocks (see the security module), which
+# is empty by default.
 resource "aws_lb_listener" "test" {
   load_balancer_arn = aws_lb.main.arn
   port              = var.test_listener_port

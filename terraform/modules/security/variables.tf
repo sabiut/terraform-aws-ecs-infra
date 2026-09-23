@@ -19,7 +19,7 @@ variable "test_listener_port" {
 }
 
 variable "test_listener_cidr_blocks" {
-  description = "CIDR blocks allowed to reach the test listener. Restrict this to your office or CI egress ranges."
+  description = "CIDR blocks allowed to reach the test listener, for example office or CI egress ranges. Empty means no ingress rule."
   type        = list(string)
 }
 

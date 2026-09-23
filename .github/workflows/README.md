@@ -15,7 +15,7 @@ This directory contains GitHub Actions workflows for automating Terraform infras
 ### terraform-plan.yml
 **Trigger:** Pull requests to main/master
 **Purpose:** Creates and displays Terraform execution plan
-- Assumes the OIDC role and selects the `dev` workspace
+- Assumes the OIDC role and selects the `dev` workspace with `environments/dev.tfvars`
 - Runs `terraform plan` and prints the plan in the job log
 - Writes a status line to the job summary
 - Skips the plan (and says so) when `AWS_ROLE_ARN` is not configured
@@ -23,7 +23,7 @@ This directory contains GitHub Actions workflows for automating Terraform infras
 ### terraform-apply.yml
 **Trigger:** Push to main/master or manual dispatch
 **Purpose:** Deploys infrastructure to AWS
-- Supports multiple environments (dev, staging, prod)
+- Supports multiple environments (dev, staging, prod), each applied with its committed `terraform/environments/<name>.tfvars`
 - Runs `terraform apply` with auto-approve
 - Creates a GitHub deployment record pointing at the ALB URL
 - Writes non-sensitive outputs to the job summary
@@ -36,6 +36,12 @@ This directory contains GitHub Actions workflows for automating Terraform infras
 - Environment-specific destruction
 - Creates destroy plan before execution
 - Logs destruction details
+
+## Environment Variable Files
+
+Each workspace is applied, planned and destroyed with `terraform/environments/<name>.tfvars`, which sets `environment` and the sizing for that environment (task size and count, log retention, database class and Multi-AZ). Without these files every workspace would apply the development defaults from `variables.tf`, including prod.
+
+The files hold no secrets. Account-specific values such as `certificate_arn`, `alarm_email` and `test_listener_cidr_blocks` are commented out in each file; fill them in for the account the workflows deploy to. Production should not be applied until `prod.tfvars` has a certificate and an alarm address.
 
 ## Provider Lock Files
 

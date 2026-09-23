@@ -20,12 +20,12 @@ output "alb_arn_suffix" {
 
 output "listener_arn" {
   description = "ARN of the forwarding HTTP listener, or null when a certificate is configured and port 80 only redirects"
-  value       = one(aws_lb_listener.frontend_http[*].arn)
+  value       = var.certificate_arn == "" ? aws_lb_listener.http.arn : null
 }
 
 output "http_redirect_listener_arn" {
   description = "ARN of the HTTP to HTTPS redirect listener, or null when no certificate is configured"
-  value       = one(aws_lb_listener.http_redirect[*].arn)
+  value       = var.certificate_arn != "" ? aws_lb_listener.http.arn : null
 }
 
 output "https_listener_arn" {
@@ -37,11 +37,33 @@ output "https_listener_arn" {
 output "frontend_blue_target_group_arn" {
   description = "ARN of the frontend blue target group"
   value       = aws_lb_target_group.frontend_blue.arn
+
+  # ECS refuses to create a service whose target group is not attached to a
+  # load balancer, and a target group ARN exists before any listener refers
+  # to it. Consumers of these outputs therefore wait for every listener and
+  # rule, so the services are created only once the attachment exists.
+  depends_on = [
+    aws_lb_listener.http,
+    aws_lb_listener.frontend_https,
+    aws_lb_listener.test,
+    aws_lb_listener_rule.backend_api,
+    aws_lb_listener_rule.backend_api_https,
+    aws_lb_listener_rule.backend_api_test,
+  ]
 }
 
 output "frontend_green_target_group_arn" {
   description = "ARN of the frontend green target group"
   value       = aws_lb_target_group.frontend_green.arn
+
+  depends_on = [
+    aws_lb_listener.http,
+    aws_lb_listener.frontend_https,
+    aws_lb_listener.test,
+    aws_lb_listener_rule.backend_api,
+    aws_lb_listener_rule.backend_api_https,
+    aws_lb_listener_rule.backend_api_test,
+  ]
 }
 
 output "frontend_blue_target_group_name" {
@@ -58,11 +80,29 @@ output "frontend_green_target_group_name" {
 output "backend_blue_target_group_arn" {
   description = "ARN of the backend blue target group"
   value       = aws_lb_target_group.backend_blue.arn
+
+  depends_on = [
+    aws_lb_listener.http,
+    aws_lb_listener.frontend_https,
+    aws_lb_listener.test,
+    aws_lb_listener_rule.backend_api,
+    aws_lb_listener_rule.backend_api_https,
+    aws_lb_listener_rule.backend_api_test,
+  ]
 }
 
 output "backend_green_target_group_arn" {
   description = "ARN of the backend green target group"
   value       = aws_lb_target_group.backend_green.arn
+
+  depends_on = [
+    aws_lb_listener.http,
+    aws_lb_listener.frontend_https,
+    aws_lb_listener.test,
+    aws_lb_listener_rule.backend_api,
+    aws_lb_listener_rule.backend_api_https,
+    aws_lb_listener_rule.backend_api_test,
+  ]
 }
 
 output "backend_blue_target_group_name" {

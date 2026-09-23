@@ -85,7 +85,13 @@ resource "aws_security_group_rule" "alb_egress_frontend" {
   description              = "To Frontend ECS"
 }
 
+# The test listener fronts the inactive colour, which may be running an
+# unreleased build, so it is not open to the internet by default. With no
+# CIDR blocks there is no ingress rule at all; the listener still exists so
+# the inactive target groups stay attached and health checked.
 resource "aws_security_group_rule" "alb_ingress_test" {
+  count = length(var.test_listener_cidr_blocks) > 0 ? 1 : 0
+
   type              = "ingress"
   from_port         = var.test_listener_port
   to_port           = var.test_listener_port

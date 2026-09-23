@@ -57,7 +57,7 @@ The infrastructure consists of:
 - **NAT Gateway**: For private subnet outbound access
 
 ### Security Groups
-- **ALB Security Group**: Allows 80/443 from internet and the test listener port from `test_listener_cidr_blocks`, egress 8080 to frontend and backend
+- **ALB Security Group**: Allows 80/443 from internet and the test listener port only from `test_listener_cidr_blocks` (nobody by default), egress 8080 to frontend and backend
 - **Frontend Security Group**: Allows 8080 from ALB, egress to backend
 - **Backend Security Group**: Allows 8080 from ALB and frontend, egress to RDS
 - **RDS Security Group**: Allows 3306 from backend only
@@ -65,7 +65,7 @@ The infrastructure consists of:
 ### Compute Layer
 - **ECS Cluster**: Fargate-based container orchestration
 - **Frontend Service**: Public-facing web tier
-- **Backend Service**: Private application tier
+- **Backend Service**: Private application tier, redeployed automatically when the database password rotates
 - **Application Load Balancer**: Routes traffic to frontend
 
 ### Database Layer
@@ -80,7 +80,7 @@ graph LR
         Internet[Internet<br/>0.0.0.0/0]
 
         subgraph "ALB Security Group"
-            ALB_SG[ALB SG<br/>Ingress: 80, 443, test port from Internet<br/>Egress: 8080 to Frontend SG and Backend SG]
+            ALB_SG[ALB SG<br/>Ingress: 80, 443 from Internet, test port from allowed CIDRs<br/>Egress: 8080 to Frontend SG and Backend SG]
         end
 
         subgraph "Frontend Security Group"
@@ -124,6 +124,7 @@ graph LR
 │   ├── variables.tf          # Input variables
 │   ├── outputs.tf            # Output values
 │   ├── terraform.tfvars.example
+│   ├── environments/         # Per-environment variable files applied by CI
 │   └── modules/
 │       ├── networking/       # VPC, subnets, routing
 │       ├── security/         # Security groups
@@ -138,7 +139,7 @@ graph LR
 ## Prerequisites
 
 1. **AWS CLI configured** with appropriate credentials
-2. **Terraform** installed (version >= 1.0)
+2. **Terraform** installed (version >= 1.4)
 3. **IAM permissions** for creating AWS resources
 
 ## Terraform Module Dependencies
@@ -205,7 +206,7 @@ cp terraform.tfvars.example terraform.tfvars
 
 ### 3. Configure Variables
 
-Edit `terraform.tfvars` with your specific values:
+The committed files under `terraform/environments/` hold the sizing for each environment and are what the workflows apply; you can use one locally with `terraform plan -var-file=environments/dev.tfvars`. For account-specific values, edit `terraform.tfvars`:
 
 ```hcl
 # AWS Configuration
@@ -312,6 +313,8 @@ Backend containers automatically receive database connection details:
 - `DB_PASSWORD`: Database password
 - `PORT`: Application port (8080)
 
+`DB_USER` and `DB_PASSWORD` are read from Secrets Manager when a task starts. RDS rotates the password every seven days, so the infrastructure redeploys the backend services whenever the secret's active version changes (see [Database password rotation](#database-password-rotation)).
+
 ## Accessing Your Application
 
 Once deployed, access your application using the ALB DNS name:
@@ -349,7 +352,7 @@ alarm_email            = "ops@example.com"
 test_listener_cidr_blocks = ["203.0.113.0/24"]
 ```
 
-Setting `environment = "prod"` also turns on RDS deletion protection and a final snapshot. The desired counts are the initial values for the active colour; the deployment pipeline owns them afterwards. Fargate accepts only certain CPU and memory pairings, so check the [task size table](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-cpu-memory-error.html) when changing them.
+These are the values in `terraform/environments/prod.tfvars`, which the apply workflow uses for the prod workspace; `dev.tfvars` and `staging.tfvars` cover the other two. Setting `environment = "prod"` also turns on RDS deletion protection and a final snapshot. The desired counts are the initial values for the active colour; the deployment pipeline owns them afterwards. Fargate accepts only certain CPU and memory pairings, so check the [task size table](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-cpu-memory-error.html) when changing them.
 
 ### SSL/TLS
 
@@ -359,7 +362,13 @@ To enable HTTPS:
 2. Set `certificate_arn` in `terraform.tfvars` to the certificate's ARN
 3. Run `terraform apply`
 
-The HTTPS listener is only created when `certificate_arn` is set. Without it the ALB serves the application on HTTP. With it, port 80 only redirects to HTTPS with a 301, and the forwarding HTTP listener and its backend rule are not created, so `http_listener_arn` and `backend_listener_rule_arn` are null and the pipeline only switches the HTTPS and test listeners.
+The HTTPS listener is only created when `certificate_arn` is set. Without it the ALB serves the application on HTTP. With it, port 80 only redirects to HTTPS with a 301, the backend rule on port 80 is not created, and `http_listener_arn` and `backend_listener_rule_arn` are null, so the pipeline only switches the HTTPS and test listeners.
+
+Turning HTTPS on or off replaces the port-80 listener (AWS allows one listener per port, so it cannot be swapped in place). Port 80 is unavailable for a few seconds during the apply, and the new listener starts out pointing at blue, so switch HTTPS on at a time when blue is the live colour or switch back afterwards. A deployment created before this listener was unified, that already had a certificate, must move its redirect listener in state before applying:
+
+```bash
+terraform state mv 'module.alb.aws_lb_listener.http_redirect[0]' module.alb.aws_lb_listener.http
+```
 
 ### Multi-AZ Deployment
 
@@ -369,12 +378,19 @@ The one single-AZ component is the NAT gateway in the first public subnet. If th
 
 ## Security Considerations
 
-1. **Database Password**: Generated by RDS and stored in Secrets Manager; it never passes through Terraform variables or state. Rotate it from the RDS console or with `aws rds modify-db-instance --rotate-master-user-password`
-2. **Network ACLs**: Consider additional network-level security
-3. **IAM Roles**: Follow principle of least privilege
-4. **Encryption**: RDS storage is encrypted at rest with the default KMS key; the Secrets Manager secret is encrypted with the Secrets Manager default key
-5. **Production safeguards**: When `environment` is `prod`, RDS deletion protection is on and a final snapshot is taken on destroy
-6. **VPC Flow Logs**: Enable for network monitoring
+1. **Database Password**: Generated by RDS and stored in Secrets Manager; it never passes through Terraform variables or state. RDS rotates it every seven days, and it can be rotated on demand from the RDS console or with `aws rds modify-db-instance --rotate-master-user-password --apply-immediately`. See [Database password rotation](#database-password-rotation) for how running tasks pick up the new password
+2. **Test listener**: Fronts the inactive colour, which may be running an unreleased build. It is closed until `test_listener_cidr_blocks` lists the office or CI ranges that may reach it
+3. **Network ACLs**: Consider additional network-level security
+4. **IAM Roles**: Follow principle of least privilege
+5. **Encryption**: RDS storage is encrypted at rest with the default KMS key; the Secrets Manager secret is encrypted with the Secrets Manager default key
+6. **Production safeguards**: When `environment` is `prod`, RDS deletion protection is on and a final snapshot is taken on destroy
+7. **VPC Flow Logs**: Enable for network monitoring
+
+### Database password rotation
+
+ECS reads `DB_USER` and `DB_PASSWORD` from Secrets Manager only when a task starts, so on its own a rotation would leave running backend tasks with a password that no longer works. Secrets Manager publishes a `Secret Label Updated` event whenever the secret's `AWSCURRENT` label moves to a new version, which is what a rotation does. An EventBridge rule matches that event for the database secret and starts a small Step Functions state machine that forces a new deployment of both backend services. ECS starts tasks with the new password before stopping the old ones; the inactive colour has no tasks, so nothing happens there.
+
+Between RDS changing the password and the new tasks becoming healthy, typically a few minutes, new database connections from the old tasks fail. Existing connections are unaffected. An application that must not see that window should retry with a fresh read of the secret on authentication failure instead of relying on the injected variable. If the redeploy itself fails, the `db-secret-redeploy-failed` alarm fires.
 
 ## Monitoring and Logging
 
@@ -397,6 +413,7 @@ The `monitoring` module creates CloudWatch alarms for the conditions that need a
 | `<project>-<env>-rds-cpu` | Database CPU above 80% for 15 minutes |
 | `<project>-<env>-rds-free-storage` | Free storage below 2 GiB |
 | `<project>-<env>-rds-freeable-memory` | Freeable memory below 256 MiB for 15 minutes |
+| `<project>-<env>-db-secret-redeploy-failed` | The backend redeploy after a database password rotation failed; tasks may hold a stale password |
 
 Alarms always exist and are visible in the CloudWatch console. To be notified, set `alarm_email`, which creates an SNS topic and an email subscription that must be confirmed from the email AWS sends, or pass existing topic ARNs in `alarm_actions`. Thresholds are module variables if the defaults do not fit.
 
@@ -474,7 +491,7 @@ The service names, target group ARNs, and listener ARNs are exported as Terrafor
 
 ### **Blue/Green Switching**
 
-Each tier has a blue and a green ECS service, each registered with its own target group. The ALB's production listeners (HTTP, and HTTPS when a certificate is configured) select the live colour: the default action picks the frontend, and the `/api/*`, `/health/*`, `/admin/*` rule picks the backend. A **test listener** on `test_listener_port` (default 9000) fronts the inactive colour the same way. It exists so the inactive target groups are attached to the load balancer, which ECS requires before it creates the services and which the ALB requires before it health checks them, and so a release can be exercised at `test_url` before any production traffic moves. A deployment:
+Each tier has a blue and a green ECS service, each registered with its own target group. The ALB's production listeners (HTTP, and HTTPS when a certificate is configured) select the live colour: the default action picks the frontend, and the `/api/*`, `/health/*`, `/admin/*` rule picks the backend. A **test listener** on `test_listener_port` (default 9000) fronts the inactive colour the same way. It exists so the inactive target groups are attached to the load balancer, which ECS requires before it creates the services and which the ALB requires before it health checks them, and so a release can be exercised at `test_url` before any production traffic moves. The inactive colour may be running an unreleased build, so the test port is only open to `test_listener_cidr_blocks`; set it to the office or CI egress ranges that run the smoke test, or leave it empty to keep the port closed. A deployment:
 
 1. Registers a new task definition revision and points the **inactive** colour's service at it, scaling it to the desired count.
 2. Waits for the inactive target group to report healthy targets, then smoke tests through `terraform output -raw test_url`.
