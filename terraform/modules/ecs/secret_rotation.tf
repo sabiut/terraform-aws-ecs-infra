@@ -7,13 +7,18 @@
 # starts tasks with the new password before stopping the old ones; the
 # inactive colour has no tasks, so its deployment is a no-op.
 #
-# UpdateService only queues the deployment, so the state machine then polls
-# DescribeServices until the service has a single deployment that reports
-# COMPLETED, which means every old task is gone. If ECS rolls the deployment
-# back its rollout state is FAILED and the execution fails; an execution
-# that has not settled within an hour times out. Both raise the
-# db-secret-redeploy-failed alarm. A rollback that does complete still
-# counts as success: its tasks were also started after the rotation.
+# UpdateService only queues the deployment, so the state machine records the
+# deployment it started and polls DescribeServices until that same
+# deployment is the service's only one and reports COMPLETED, which means
+# every old task is gone. A circuit breaker rollback does not create a new
+# deployment: it moves the previous COMPLETED deployment back to IN_PROGRESS
+# with its old tasks still running, so completion alone would not prove the
+# tasks were replaced. If the primary deployment is no longer the one this
+# execution started, or reports FAILED, the execution fails; one that has
+# not settled within an hour times out. All of these raise the
+# db-secret-redeploy-failed alarm. A pipeline deployment that supersedes the
+# redeploy during those minutes also fails the execution even though its
+# tasks are fresh; the alarm is the cue to check the service.
 #
 # New connections from the old tasks fail between the password change and
 # the new tasks becoming healthy, typically a few minutes. An application
@@ -106,7 +111,11 @@ resource "aws_sfn_state_machine" "db_secret_redeploy" {
                 "Service.$"        = "$.name"
                 ForceNewDeployment = true
               }
-              ResultPath = null
+              # The response lists the new PRIMARY deployment first.
+              ResultSelector = {
+                "deploymentId.$" = "$.Service.Deployments[0].Id"
+              }
+              ResultPath = "$.started"
               Retry      = local.redeploy_retry
               Next       = "WaitForRollout"
             }
@@ -126,6 +135,7 @@ resource "aws_sfn_state_machine" "db_secret_redeploy" {
               # listed while their tasks drain, so a count of one means no
               # task started before the rotation is still running.
               ResultSelector = {
+                "primaryId.$"       = "$.Services[0].Deployments[0].Id"
                 "rolloutState.$"    = "$.Services[0].Deployments[0].RolloutState"
                 "deploymentCount.$" = "States.ArrayLength($.Services[0].Deployments)"
               }
@@ -136,6 +146,13 @@ resource "aws_sfn_state_machine" "db_secret_redeploy" {
             CheckRollout = {
               Type = "Choice"
               Choices = [
+                {
+                  Not = {
+                    Variable         = "$.rollout.primaryId"
+                    StringEqualsPath = "$.started.deploymentId"
+                  }
+                  Next = "RolloutReplaced"
+                },
                 {
                   Variable     = "$.rollout.rolloutState"
                   StringEquals = "FAILED"
@@ -157,10 +174,15 @@ resource "aws_sfn_state_machine" "db_secret_redeploy" {
               ]
               Default = "WaitForRollout"
             }
+            RolloutReplaced = {
+              Type  = "Fail"
+              Error = "RolloutReplaced"
+              Cause = "The deployment started for the password rotation is no longer the service's primary deployment: ECS rolled it back or another deployment superseded it. Check that no backend task predates the rotation."
+            }
             RolloutFailed = {
               Type  = "Fail"
               Error = "RolloutFailed"
-              Cause = "ECS rolled the deployment back; backend tasks may still hold the old database password"
+              Cause = "The deployment started for the password rotation failed and could not be rolled back; backend tasks may still hold the old database password"
             }
             RolloutComplete = {
               Type = "Succeed"
