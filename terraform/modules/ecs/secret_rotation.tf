@@ -7,6 +7,14 @@
 # starts tasks with the new password before stopping the old ones; the
 # inactive colour has no tasks, so its deployment is a no-op.
 #
+# UpdateService only queues the deployment, so the state machine then polls
+# DescribeServices until the service has a single deployment that reports
+# COMPLETED, which means every old task is gone. If ECS rolls the deployment
+# back its rollout state is FAILED and the execution fails; an execution
+# that has not settled within an hour times out. Both raise the
+# db-secret-redeploy-failed alarm. A rollback that does complete still
+# counts as success: its tasks were also started after the rotation.
+#
 # New connections from the old tasks fail between the password change and
 # the new tasks becoming healthy, typically a few minutes. An application
 # that must not see that window should read the secret itself on connection
@@ -17,6 +25,16 @@ locals {
     blue  = aws_ecs_service.backend_blue
     green = aws_ecs_service.backend_green
   }
+
+  # ECS API calls are retried on throttling and transient errors.
+  redeploy_retry = [
+    {
+      ErrorEquals     = ["States.ALL"]
+      IntervalSeconds = 5
+      MaxAttempts     = 3
+      BackoffRate     = 2
+    }
+  ]
 }
 
 resource "aws_iam_role" "db_secret_redeploy" {
@@ -49,7 +67,7 @@ resource "aws_iam_role_policy" "db_secret_redeploy" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = "ecs:UpdateService"
+        Action   = ["ecs:UpdateService", "ecs:DescribeServices"]
         Resource = [for s in local.backend_services : s.id]
       }
     ]
@@ -61,46 +79,94 @@ resource "aws_sfn_state_machine" "db_secret_redeploy" {
   role_arn = aws_iam_role.db_secret_redeploy.arn
 
   definition = jsonencode({
-    Comment = "Force a new deployment of the backend services so tasks start with the rotated database password"
-    StartAt = "RedeployBackendBlue"
+    Comment        = "Force a new deployment of the backend services so tasks start with the rotated database password, and wait for it to finish"
+    TimeoutSeconds = 3600
+    StartAt        = "ListBackendServices"
     States = {
-      RedeployBackendBlue = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::aws-sdk:ecs:updateService"
+      ListBackendServices = {
+        Type = "Pass"
         Parameters = {
-          Cluster            = aws_ecs_cluster.main.name
-          Service            = aws_ecs_service.backend_blue.name
-          ForceNewDeployment = true
+          services = [for s in local.backend_services : { name = s.name }]
         }
-        ResultPath = null
-        Retry = [
-          {
-            ErrorEquals     = ["States.ALL"]
-            IntervalSeconds = 5
-            MaxAttempts     = 3
-            BackoffRate     = 2
-          }
-        ]
-        Next = "RedeployBackendGreen"
+        Next = "RedeployEach"
       }
-      RedeployBackendGreen = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::aws-sdk:ecs:updateService"
-        Parameters = {
-          Cluster            = aws_ecs_cluster.main.name
-          Service            = aws_ecs_service.backend_green.name
-          ForceNewDeployment = true
-        }
-        ResultPath = null
-        Retry = [
-          {
-            ErrorEquals     = ["States.ALL"]
-            IntervalSeconds = 5
-            MaxAttempts     = 3
-            BackoffRate     = 2
+      RedeployEach = {
+        Type           = "Map"
+        ItemsPath      = "$.services"
+        MaxConcurrency = 2
+        End            = true
+        Iterator = {
+          StartAt = "ForceNewDeployment"
+          States = {
+            ForceNewDeployment = {
+              Type     = "Task"
+              Resource = "arn:aws:states:::aws-sdk:ecs:updateService"
+              Parameters = {
+                Cluster            = aws_ecs_cluster.main.name
+                "Service.$"        = "$.name"
+                ForceNewDeployment = true
+              }
+              ResultPath = null
+              Retry      = local.redeploy_retry
+              Next       = "WaitForRollout"
+            }
+            WaitForRollout = {
+              Type    = "Wait"
+              Seconds = 30
+              Next    = "DescribeService"
+            }
+            DescribeService = {
+              Type     = "Task"
+              Resource = "arn:aws:states:::aws-sdk:ecs:describeServices"
+              Parameters = {
+                Cluster      = aws_ecs_cluster.main.name
+                "Services.$" = "States.Array($.name)"
+              }
+              # Deployments[0] is the PRIMARY deployment. Old deployments stay
+              # listed while their tasks drain, so a count of one means no
+              # task started before the rotation is still running.
+              ResultSelector = {
+                "rolloutState.$"    = "$.Services[0].Deployments[0].RolloutState"
+                "deploymentCount.$" = "States.ArrayLength($.Services[0].Deployments)"
+              }
+              ResultPath = "$.rollout"
+              Retry      = local.redeploy_retry
+              Next       = "CheckRollout"
+            }
+            CheckRollout = {
+              Type = "Choice"
+              Choices = [
+                {
+                  Variable     = "$.rollout.rolloutState"
+                  StringEquals = "FAILED"
+                  Next         = "RolloutFailed"
+                },
+                {
+                  And = [
+                    {
+                      Variable     = "$.rollout.rolloutState"
+                      StringEquals = "COMPLETED"
+                    },
+                    {
+                      Variable      = "$.rollout.deploymentCount"
+                      NumericEquals = 1
+                    }
+                  ]
+                  Next = "RolloutComplete"
+                }
+              ]
+              Default = "WaitForRollout"
+            }
+            RolloutFailed = {
+              Type  = "Fail"
+              Error = "RolloutFailed"
+              Cause = "ECS rolled the deployment back; backend tasks may still hold the old database password"
+            }
+            RolloutComplete = {
+              Type = "Succeed"
+            }
           }
-        ]
-        End = true
+        }
       }
     }
   })
