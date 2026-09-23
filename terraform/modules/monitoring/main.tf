@@ -169,23 +169,44 @@ resource "aws_cloudwatch_metric_alarm" "rds_freeable_memory" {
   tags = var.tags
 }
 
-# The backend is redeployed after every database password rotation. If that
-# fails, running tasks keep a password that no longer works and the next
+# The backend is redeployed after every database password rotation and the
+# state machine waits for the rollout to finish. A failed execution means ECS
+# rolled the deployment back, a timed out one means it never settled; either
+# way running tasks may keep a password that no longer works and the next
 # scheduled rotation is a week away, so it needs a person.
 resource "aws_cloudwatch_metric_alarm" "db_secret_redeploy_failed" {
   alarm_name          = "${local.name_prefix}-db-secret-redeploy-failed"
-  alarm_description   = "Redeploying the backend after a database password rotation failed; backend tasks may hold a stale password"
-  namespace           = "AWS/States"
-  metric_name         = "ExecutionsFailed"
-  statistic           = "Sum"
-  period              = 300
+  alarm_description   = "Redeploying the backend after a database password rotation failed or timed out; backend tasks may hold a stale password"
   evaluation_periods  = 1
   threshold           = 0
   comparison_operator = "GreaterThanThreshold"
   treat_missing_data  = "notBreaching"
 
-  dimensions = {
-    StateMachineArn = var.db_secret_redeploy_arn
+  metric_query {
+    id          = "unsuccessful"
+    expression  = "SUM([failed, timed_out, aborted])"
+    label       = "Unsuccessful redeploy executions"
+    return_data = true
+  }
+
+  dynamic "metric_query" {
+    for_each = {
+      failed    = "ExecutionsFailed"
+      timed_out = "ExecutionsTimedOut"
+      aborted   = "ExecutionsAborted"
+    }
+    content {
+      id = metric_query.key
+      metric {
+        namespace   = "AWS/States"
+        metric_name = metric_query.value
+        stat        = "Sum"
+        period      = 300
+        dimensions = {
+          StateMachineArn = var.db_secret_redeploy_arn
+        }
+      }
+    }
   }
 
   alarm_actions = local.actions

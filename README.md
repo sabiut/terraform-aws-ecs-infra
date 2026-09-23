@@ -388,9 +388,9 @@ The one single-AZ component is the NAT gateway in the first public subnet. If th
 
 ### Database password rotation
 
-ECS reads `DB_USER` and `DB_PASSWORD` from Secrets Manager only when a task starts, so on its own a rotation would leave running backend tasks with a password that no longer works. Secrets Manager publishes a `Secret Label Updated` event whenever the secret's `AWSCURRENT` label moves to a new version, which is what a rotation does. An EventBridge rule matches that event for the database secret and starts a small Step Functions state machine that forces a new deployment of both backend services. ECS starts tasks with the new password before stopping the old ones; the inactive colour has no tasks, so nothing happens there.
+ECS reads `DB_USER` and `DB_PASSWORD` from Secrets Manager only when a task starts, so on its own a rotation would leave running backend tasks with a password that no longer works. Secrets Manager publishes a `Secret Label Updated` event whenever the secret's `AWSCURRENT` label moves to a new version, which is what a rotation does. An EventBridge rule matches that event for the database secret and starts a small Step Functions state machine that forces a new deployment of both backend services and waits for each rollout to finish. ECS starts tasks with the new password before stopping the old ones; the inactive colour has no tasks, so nothing happens there. The state machine only succeeds once a service has a single deployment reporting `COMPLETED`, meaning every task started before the rotation is gone. It fails if ECS rolls the deployment back, and times out if the rollout has not settled within an hour.
 
-Between RDS changing the password and the new tasks becoming healthy, typically a few minutes, new database connections from the old tasks fail. Existing connections are unaffected. An application that must not see that window should retry with a fresh read of the secret on authentication failure instead of relying on the injected variable. If the redeploy itself fails, the `db-secret-redeploy-failed` alarm fires.
+Between RDS changing the password and the new tasks becoming healthy, typically a few minutes, new database connections from the old tasks fail. Existing connections are unaffected. An application that must not see that window should retry with a fresh read of the secret on authentication failure instead of relying on the injected variable. If the redeploy fails or times out, the `db-secret-redeploy-failed` alarm fires.
 
 ## Monitoring and Logging
 
@@ -413,7 +413,7 @@ The `monitoring` module creates CloudWatch alarms for the conditions that need a
 | `<project>-<env>-rds-cpu` | Database CPU above 80% for 15 minutes |
 | `<project>-<env>-rds-free-storage` | Free storage below 2 GiB |
 | `<project>-<env>-rds-freeable-memory` | Freeable memory below 256 MiB for 15 minutes |
-| `<project>-<env>-db-secret-redeploy-failed` | The backend redeploy after a database password rotation failed; tasks may hold a stale password |
+| `<project>-<env>-db-secret-redeploy-failed` | The backend redeploy after a database password rotation was rolled back or did not finish within an hour; tasks may hold a stale password |
 
 Alarms always exist and are visible in the CloudWatch console. To be notified, set `alarm_email`, which creates an SNS topic and an email subscription that must be confirmed from the email AWS sends, or pass existing topic ARNs in `alarm_actions`. Thresholds are module variables if the defaults do not fit.
 
